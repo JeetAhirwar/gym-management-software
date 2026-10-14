@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { SmartImage } from "@/components/shared/SmartImage";
 import { useAuth } from "@/auth/AuthProvider";
 import { cn } from "@/lib/utils";
+import "./portal-paper.css";
+
 const NAV_ITEMS = [
     { to: "/portal", label: "Home", end: true },
     { to: "/portal/attendance", label: "Attendance" },
@@ -13,6 +15,8 @@ const NAV_ITEMS = [
 /**
  * Shell for the member self-service portal — deliberately NOT the staff
  * AppShell: no sidebar, no topbar, no capability-gated staff navigation.
+ * The paper-craft stylesheet (portal-paper.css) is loaded once, here, so every
+ * portal page can use the `pp-*` surfaces.
  */
 export function MemberPortalLayout() {
     const { session, signOut } = useAuth();
@@ -24,7 +28,7 @@ export function MemberPortalLayout() {
     };
     return (<div className="min-h-dvh bg-background">
       <header className="sticky top-0 z-30 border-b border-border/70 bg-background/85 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex min-w-0 items-center gap-2.5">
             <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
               <DumbbellIcon className="size-4"/>
@@ -33,7 +37,7 @@ export function MemberPortalLayout() {
               <p className="truncate text-sm font-semibold tracking-tight">
                 {session?.gym.name ?? "Pulse Gym Suite"}
               </p>
-              <p className="truncate text-[11px] text-muted-foreground">Member portal</p>
+              <p className="truncate font-serif text-[11px] text-muted-foreground italic">Member portal</p>
             </div>
           </div>
 
@@ -51,7 +55,7 @@ export function MemberPortalLayout() {
           </div>
         </div>
 
-        <nav aria-label="Member portal" className="mx-auto flex w-full max-w-3xl gap-1 overflow-x-auto px-4 pb-2 sm:px-6">
+        <nav aria-label="Member portal" className="mx-auto flex w-full max-w-5xl gap-1 overflow-x-auto px-4 pb-2 sm:px-6">
           {NAV_ITEMS.map((item) => (<NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => cn("rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition-colors", isActive
                 ? "bg-secondary font-medium text-foreground"
                 : "text-muted-foreground hover:text-foreground")}>
@@ -60,7 +64,7 @@ export function MemberPortalLayout() {
         </nav>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
+      <main className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
         <Outlet />
       </main>
     </div>);

@@ -976,6 +976,9 @@ export class DemoDataService {
         const page = await this.listPayments({ memberId: this.demoMe().id, pageSize: 100 });
         return page.items;
     }
+    async listMyClasses() {
+        return []; // demo members never reach the portal
+    }
     async changeMyPassword() {
         throw new DataError("not_supported", "Changing your password is not supported in demo mode.");
     }

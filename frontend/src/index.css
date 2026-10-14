@@ -195,7 +195,12 @@
 
 /* ==========================================================================
    Paper-inspired surfaces
+   Tailwind v4 keeps utilities in @layer utilities; custom CSS outside a layer
+   beats them (e.g. `.paper-surface { position: relative }` was silently
+   overriding the `absolute` utility). Layering restores utility overrides.
    ========================================================================== */
+
+@layer components {
 
 .paper-surface {
   position: relative;
@@ -273,6 +278,8 @@
   height: 1px;
   opacity: 0.35;
 }
+
+} /* @layer components */
 
 /* ==========================================================================
    Misc utilities

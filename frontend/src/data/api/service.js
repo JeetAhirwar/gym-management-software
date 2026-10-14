@@ -438,6 +438,10 @@ export class ApiDataService {
         const rows = await apiGet("/me/payments");
         return rows ?? [];
     }
+    async listMyClasses() {
+        const rows = await apiGet("/me/classes");
+        return rows ?? [];
+    }
     async changeMyPassword(currentPassword, newPassword) {
         // 204 on success; 403 (wrong current password) surfaces as an ApiError with the server message.
         await apiPost("/me/password", { currentPassword, newPassword });

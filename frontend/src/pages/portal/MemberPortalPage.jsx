@@ -1,25 +1,24 @@
 import { useEffect, useState } from "react";
-import { CalendarDaysIcon, QrCodeIcon, UserRoundIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton, EmptyState, ErrorState } from "@/components/shared/States";
-import { StatusBadge } from "@/components/shared/StatusBadge";
+import { Skeleton, ErrorState } from "@/components/shared/States";
 import { useAuth, useData } from "@/auth/AuthProvider";
 import { useAsync } from "@/hooks";
-import { durationLabel, formatDate } from "@/lib/format";
-import { renderQrDataUrl, tokenHint } from "@/lib/qr";
-function greetingForHour(hour) {
-    if (hour < 12)
-        return "Good morning";
-    if (hour < 17)
-        return "Good afternoon";
-    return "Good evening";
-}
+import { renderQrDataUrl } from "@/lib/qr";
+import { greetingForHour, computeVisitStats } from "./paper";
+import { Settle, SectionHeading } from "./PaperBits";
+import { MembershipPass } from "./MembershipPass";
+import { StatsTickets } from "./StatsTickets";
+import { ClassTickets } from "./ClassTickets";
+import { VisitCalendar } from "./VisitCalendar";
+import { ReceiptStubs } from "./ReceiptStubs";
+
 export function MemberPortalPage() {
     const data = useData();
     const { session } = useAuth();
     const profile = useAsync(() => data.getMyMemberProfile(), [data]);
     const qr = useAsync(() => data.getMyQr(), [data]);
+    const attendance = useAsync(() => data.listMyAttendance(60), [data]);
+    const classes = useAsync(() => data.listMyClasses(), [data]);
+    const payments = useAsync(() => data.listMyPayments(), [data]);
     const [qrDataUrl, setQrDataUrl] = useState(null);
     const qrToken = qr.data?.token ?? null;
     useEffect(() => {
@@ -27,7 +26,6 @@ export function MemberPortalPage() {
         setQrDataUrl(null);
         if (!qrToken)
             return;
-        // Same rendering path as the staff QR card — payload carries only the opaque token.
         renderQrDataUrl(qrToken, { width: 360 })
             .then((url) => {
             if (!cancelled)
@@ -41,138 +39,76 @@ export function MemberPortalPage() {
             cancelled = true;
         };
     }, [qrToken]);
+
     const me = profile.data;
     const firstName = (me?.fullName ?? session?.profile.fullName ?? "").split(" ")[0] || "there";
-    const membership = me?.membership ?? null;
+    const now = new Date();
+    const todayLabel = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    const stats = computeVisitStats(attendance.data ?? []);
     const days = me?.daysRemaining ?? null;
-    return (<div className="space-y-4">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-balance">
-          {greetingForHour(new Date().getHours())}, {firstName}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Your membership, check-in QR and visits — all in one place.
-        </p>
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* QR card */}
-        <Card className="graphite-surface border-border/70">
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <div>
-              <CardTitle className="text-base">Check-in QR</CardTitle>
-              <p className="text-xs text-muted-foreground">Show this at the front desk</p>
-            </div>
-            <QrCodeIcon className="size-4 text-muted-foreground"/>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center gap-3">
-            {qr.error ? (<div className="w-full">
-                <ErrorState title="Unable to load your QR code" message={qr.error} onRetry={qr.reload}/>
-              </div>) : qrDataUrl ? (<img src={qrDataUrl} alt="Your membership QR code" className="size-56 rounded-lg bg-white p-2"/>) : (<Skeleton className="size-56 rounded-lg"/>)}
+    return (<div className="space-y-10 pb-6">
+      {/* ---------- greeting ---------- */}
+      <Settle>
+        <header className="relative">
+          <p className="font-serif text-sm tracking-wide text-muted-foreground italic">{todayLabel}</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+            {greetingForHour(now.getHours())},{" "}
+            <span className="font-serif italic">{firstName}</span>
+          </h1>
+          <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+            Your pass, visits and sessions — pressed onto one sheet of paper.
+          </p>
+          {me?.memberCode ? (<span aria-hidden="true" className="paper-surface paper-lift absolute top-0 right-0 hidden rotate-[6deg] rounded-md px-2.5 py-1 font-mono text-[10px] tracking-[0.2em] uppercase shadow-md sm:block">
+              Member {me.memberCode}
+            </span>) : null}
+        </header>
+      </Settle>
 
-            <div className="space-y-1 text-center">
-              <p className="text-sm font-medium">{me?.fullName ?? session?.profile.fullName}</p>
-              <p className="text-xs text-muted-foreground">
-                {me?.memberCode ?? "—"}
-                {membership?.planName ? ` · ${membership.planName}` : ""}
-              </p>
-              {qr.data ? (<p className="font-mono text-[11px] tracking-wide text-muted-foreground">
-                  Token {tokenHint(qr.data.token)}
-                </p>) : null}
-            </div>
+      {/* ---------- hero: 3D membership pass ---------- */}
+      <Settle delay={0.08} rotate={0}>
+        <section aria-labelledby="pass-heading" className="space-y-3">
+          <SectionHeading title={<span id="pass-heading">Your membership pass</span>}/>
+          {profile.error && !me ? (<ErrorState title="Unable to load your profile" message={profile.error} onRetry={profile.reload}/>) : (<MembershipPass profile={me} qr={qr} qrDataUrl={qrDataUrl}/>)}
+        </section>
+      </Settle>
 
-            {qr.data?.status === "revoked" ? (<p className="text-center text-xs text-destructive">
-                This QR was revoked — please ask the front desk for a new card.
-              </p>) : null}
-          </CardContent>
-        </Card>
+      {/* ---------- stats tickets ---------- */}
+      <Settle delay={0.16}>
+        <section aria-label="Your numbers at a glance">
+          <StatsTickets items={[
+            { label: "Visits this month", value: attendance.loading && !attendance.data ? "…" : stats.thisMonth, sub: "since the 1st" },
+            { label: "Visit streak", value: attendance.loading && !attendance.data ? "…" : stats.streak, sub: stats.streak === 1 ? "day in a row" : "days in a row" },
+            { label: "Total visits", value: attendance.loading && !attendance.data ? "…" : stats.total, sub: "on record" },
+            { label: "Days remaining", value: profile.loading && !me ? "…" : days === null ? "—" : Math.max(0, days), sub: days !== null && days <= 0 ? "renew at the desk" : "on your plan" },
+        ]}/>
+          {attendance.error && !attendance.data ? (<p className="mt-3 text-xs text-muted-foreground">
+              Visit stats unavailable — <button type="button" onClick={attendance.reload} className="underline underline-offset-4 hover:text-foreground">retry</button>
+            </p>) : null}
+        </section>
+      </Settle>
 
-        {/* Membership + identity */}
-        <div className="space-y-4">
-          {profile.error && !me ? (<ErrorState title="Unable to load your profile" message={profile.error} onRetry={profile.reload}/>) : profile.loading && !me ? (<div className="space-y-3">
-              <Skeleton className="h-52"/>
-              <Skeleton className="h-32"/>
-            </div>) : me ? (<>
-              <Card className="graphite-surface border-border/70">
-                <CardHeader className="flex-row items-center justify-between space-y-0">
-                  <div>
-                    <CardTitle className="text-base">Membership</CardTitle>
-                    <p className="text-xs text-muted-foreground">Live plan and validity</p>
-                  </div>
-                  <StatusBadge status={me.effectiveStatus}/>
-                </CardHeader>
-                <CardContent>
-                  {membership ? (<div className="space-y-4">
-                      <div>
-                        <p className="text-xs tracking-wide text-muted-foreground uppercase">Plan</p>
-                        <p className="mt-1 text-lg font-semibold tracking-tight">
-                          {membership.planName ?? "Plan"}
-                        </p>
-                        {membership.planDurationValue && membership.planDurationUnit ? (<p className="text-xs text-muted-foreground">
-                            {durationLabel(membership.planDurationValue, membership.planDurationUnit)}
-                          </p>) : null}
-                      </div>
+      {/* ---------- classes: boarding passes ---------- */}
+      <Settle delay={0.24}>
+        <section aria-labelledby="classes-heading" className="space-y-3">
+          <SectionHeading title={<span id="classes-heading">My classes</span>}/>
+          <ClassTickets classes={classes}/>
+        </section>
+      </Settle>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs tracking-wide text-muted-foreground uppercase">Start</p>
-                          <p className="mt-1 text-sm font-medium">{formatDate(membership.startDate)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs tracking-wide text-muted-foreground uppercase">End</p>
-                          <p className="mt-1 text-sm font-medium">{formatDate(membership.endDate)}</p>
-                        </div>
-                      </div>
+      {/* ---------- calendar + receipts ---------- */}
+      <Settle delay={0.32}>
+        <div className="grid items-start gap-6 lg:grid-cols-2">
+          <section aria-labelledby="calendar-heading" className="space-y-3">
+            <SectionHeading title={<span id="calendar-heading">Visit calendar</span>}/>
+            {attendance.loading && !attendance.data ? (<Skeleton className="h-96 rounded-xl"/>) : attendance.error && !attendance.data ? (<ErrorState title="Unable to load your visits" message={attendance.error} onRetry={attendance.reload}/>) : (<VisitCalendar records={attendance.data ?? []}/>)}
+          </section>
 
-                      <div className="rounded-lg border border-border/70 bg-secondary/40 px-4 py-3">
-                        <p className="text-3xl font-semibold tabular-nums tracking-tight">
-                          {days === null ? "—" : days <= 0 ? "0" : days}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {days === null
-                    ? "Days remaining unavailable"
-                    : days <= 0
-                        ? "Membership expired — renew at the front desk"
-                        : days === 1
-                            ? "day left"
-                            : "days left"}
-                        </p>
-                      </div>
-                    </div>) : (<EmptyState icon={<CalendarDaysIcon className="size-5"/>} title="No membership yet" description="Visit the front desk to get a plan assigned — it will appear here as soon as it is active." className="py-8"/>)}
-                </CardContent>
-              </Card>
-
-              <Card className="graphite-surface border-border/70">
-                <CardHeader className="flex-row items-center justify-between space-y-0">
-                  <div>
-                    <CardTitle className="text-base">My details</CardTitle>
-                    <p className="text-xs text-muted-foreground">On file with the gym</p>
-                  </div>
-                  <UserRoundIcon className="size-4 text-muted-foreground"/>
-                </CardHeader>
-                <CardContent className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <p className="text-xs tracking-wide text-muted-foreground uppercase">Member code</p>
-                    <p className="mt-1">
-                      <Badge variant="secondary">{me.memberCode}</Badge>
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs tracking-wide text-muted-foreground uppercase">Joined</p>
-                    <p className="mt-1 text-sm font-medium">{formatDate(me.joinDate)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs tracking-wide text-muted-foreground uppercase">Phone</p>
-                    <p className="mt-1 text-sm font-medium">{me.phone || "—"}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs tracking-wide text-muted-foreground uppercase">Email</p>
-                    <p className="mt-1 truncate text-sm font-medium">{me.email || "—"}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </>) : null}
+          <section aria-labelledby="payments-heading" className="space-y-3">
+            <SectionHeading title={<span id="payments-heading">Recent payments</span>}/>
+            <ReceiptStubs payments={payments} linkTo="/portal/payments"/>
+          </section>
         </div>
-      </div>
+      </Settle>
     </div>);
 }
