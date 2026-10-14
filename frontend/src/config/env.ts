@@ -22,7 +22,14 @@ function normalizeApiUrl(value: string | undefined): string | null {
   return trimmed.replace(/\/+$/, "");
 }
 
-export const apiUrl = normalizeApiUrl(rawApiUrl);
+/**
+ * Deployed API fallback — baked in so a production build works even when the
+ * host has no environment configuration. `VITE_API_URL` always wins when set.
+ */
+const PRODUCTION_API_URL = "https://gym-management-software-api.vercel.app/api";
+
+export const apiUrl =
+  normalizeApiUrl(rawApiUrl) ?? (import.meta.env.PROD ? normalizeApiUrl(PRODUCTION_API_URL) : null);
 
 export const hasApiConfig = apiUrl !== null;
 

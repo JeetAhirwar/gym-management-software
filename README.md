@@ -106,9 +106,9 @@ Business rules (QR eligibility, cooldowns, renewal math, balances) live in the b
 
 ## Deployment
 
-- **Backend → Render**: Node service pointing at `backend-server/` (build `npm install`, start `npm start`). Set `MONGODB_URI`, `JWT_SECRET`, `CLIENT_ORIGIN` (your Vercel URL) in the dashboard. Render's health check hits `/api/health`. Free tier sleeps when idle — first request takes ~50s.
-- **Frontend → Vercel**: project root `frontend/`, Vite auto-detected. Set `VITE_API_URL=https://<your-render-service>.onrender.com/api`. `vercel.json` contains the SPA rewrite required by React Router.
-- **Database → MongoDB Atlas** free M0 cluster. Allow network access (`0.0.0.0/0` for Render + local dev) and create a DB user.
+- **Backend → Vercel**: project root `backend-server/`. The serverless entry `api/index.js` wraps the Express app and caches the Mongo connection across warm invocations (`vercel.json` rewrites everything to it). Set `MONGODB_URI` and `JWT_SECRET` in the project's environment settings. Health check: `https://<your-api>.vercel.app/api/health`. (A `render.yaml` is also included if you prefer Render.)
+- **Frontend → Vercel**: project root `frontend/`, Vite auto-detected. The deployed API URL is baked in as a fallback — override it any time with `VITE_API_URL`. `vercel.json` contains the SPA rewrite required by React Router.
+- **Database → MongoDB Atlas** free M0 cluster. Allow network access (`0.0.0.0/0` for serverless platforms + local dev) and create a DB user.
 
 ## Security notes
 

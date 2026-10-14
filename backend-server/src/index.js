@@ -45,11 +45,26 @@ export function buildApp() {
       /^172\.(1[6-9]|2\d|3[01])\./.test(host)
     );
   };
+  // Deployed frontends (production + preview URLs) on Vercel.
+  const isVercelFrontend = (origin) => {
+    let host;
+    try {
+      host = new URL(origin).hostname;
+    } catch {
+      return false;
+    }
+    return /^[\w-]+(\.[\w-]+)*\.vercel\.app$/.test(host);
+  };
   app.use(
     cors({
       origin(origin, callback) {
         // Allow server-to-server / same-origin requests (no Origin header).
-        if (!origin || allowedOrigins.has(origin) || isDevOrigin(origin))
+        if (
+          !origin ||
+          allowedOrigins.has(origin) ||
+          isDevOrigin(origin) ||
+          isVercelFrontend(origin)
+        )
           return callback(null, true);
         return callback(null, false);
       },

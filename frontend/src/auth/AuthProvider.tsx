@@ -100,7 +100,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   const { session, loading, mode } = useAuth();
   const location = useLocation();
 
-  if (mode === "unconfigured") return <Navigate to="/setup" replace />;
+  if (mode === "unconfigured") return <Navigate to="/login" replace />;
   if (loading) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-background">

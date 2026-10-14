@@ -3,7 +3,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, RequireAuth } from "@/auth/AuthProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { LoginPage } from "@/pages/LoginPage";
-import { SetupPage } from "@/pages/SetupPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { StaffPage } from "@/pages/staff/StaffPage";
 import { ClassesPage } from "@/pages/classes/ClassesPage";
@@ -23,7 +22,6 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/setup" element={<SetupPage />} />
           <Route
             element={
               <RequireAuth>
