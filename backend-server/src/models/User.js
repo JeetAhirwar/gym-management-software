@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const { Schema, model } = mongoose;
 
-/** Authenticated staff user (the old `profiles` table + password hash). */
+/** Authenticated user: staff (profiles + password hash) or a member portal login. */
 const UserSchema = new Schema(
   {
     gymId: { type: Schema.Types.ObjectId, ref: "Gym", required: true, index: true },
@@ -12,9 +12,11 @@ const UserSchema = new Schema(
     passwordHash: { type: String, required: true },
     role: {
       type: String,
-      enum: ["owner", "admin", "front_desk", "trainer"],
+      enum: ["owner", "admin", "front_desk", "trainer", "member"],
       default: "front_desk",
     },
+    /** Set for role "member": the gym member this login belongs to. */
+    memberId: { type: Schema.Types.ObjectId, ref: "Member", default: null, index: true },
     avatarUrl: { type: String, default: null },
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date, default: null },

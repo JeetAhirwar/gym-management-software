@@ -22,6 +22,7 @@ import type {
   MemberWithMembership,
   MembershipPlan,
   MonthRevenue,
+  MyMemberProfile,
   Paginated,
   PaymentMethod,
   PaymentQuery,
@@ -53,6 +54,8 @@ export interface MemberCreateInput {
   /** First membership assignment. */
   planId: string;
   membershipStart: string;
+  /** Optional portal password for the member's own login (default: test@123). */
+  loginPassword?: string;
   /** Optional first payment recorded together with the membership. */
   initialPayment?: {
     amount: number;
@@ -64,7 +67,7 @@ export interface MemberCreateInput {
 }
 
 export type MemberUpdateInput = Partial<
-  Omit<MemberCreateInput, "planId" | "membershipStart" | "initialPayment">
+  Omit<MemberCreateInput, "planId" | "membershipStart" | "initialPayment" | "loginPassword">
 > & {
   status?: MemberStatus;
 };
@@ -220,6 +223,13 @@ export interface DataService {
   getDues(): Promise<DuesRow[]>;
   getRevenueSummary(months: number): Promise<RevenueSummary[]>;
 
+  /* member self-service portal (scoped to the signed-in member's own data) */
+  getMyMemberProfile(): Promise<MyMemberProfile>;
+  getMyQr(): Promise<{ token: string; status: "active" | "revoked" }>;
+  listMyAttendance(limit?: number): Promise<AttendanceRecord[]>;
+  listMyPayments(): Promise<PaymentRecord[]>;
+  changeMyPassword(currentPassword: string, newPassword: string): Promise<void>;
+
   /* staff */
   listStaff(includeInactive?: boolean): Promise<StaffProfile[]>;
   createStaff(input: StaffCreateInput): Promise<StaffProfile>;
@@ -253,6 +263,8 @@ export interface AuthProvider {
   readonly mode: "api" | "demo";
   getSession(): Promise<import("@/types").AuthSession | null>;
   signIn(email: string, password: string): Promise<import("@/types").AuthSession>;
+  /** Members authenticate with their member code (e.g. "PG-0001") + password. */
+  signInMember(memberCode: string, password: string): Promise<import("@/types").AuthSession>;
   signOut(): Promise<void>;
   onAuthChange(cb: (session: import("@/types").AuthSession | null) => void): () => void;
 }

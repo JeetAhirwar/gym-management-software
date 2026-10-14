@@ -57,6 +57,7 @@ function emptyValues(): MemberFormValues {
     joinDate: today,
     planId: "",
     membershipStart: today,
+    loginPassword: "",
     photoUrl: "",
     notes: "",
   };
@@ -98,6 +99,7 @@ function toCreateInput(
     ...toIdentityInput(values),
     planId: values.planId,
     membershipStart: values.membershipStart,
+    loginPassword: trimOrNull(values.loginPassword) ?? undefined,
     initialPayment:
       recordPayment && typeof amount === "number" && amount > 0
         ? { amount, method, paymentDate: toDateOnly(new Date()) }
@@ -175,6 +177,7 @@ export function MemberFormDialog({
       // They are never sent to `updateMember`, so a placeholder is safe.
       planId: member.membership?.planId ?? planChoices[0]?.id ?? member.id,
       membershipStart: member.membership?.startDate ?? toDateOnly(member.joinDate),
+      loginPassword: "",
     });
   }, [open, member, planChoices, reset]);
 
@@ -394,6 +397,27 @@ export function MemberFormDialog({
                         </SelectContent>
                       </Select>
                     </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <p className="text-sm font-medium sm:col-span-2">Member portal login</p>
+
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="member-login-password">Portal password (optional)</Label>
+                  <Input
+                    id="member-login-password"
+                    placeholder="Default: test@123"
+                    autoComplete="new-password"
+                    {...register("loginPassword")}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The member signs in with their auto-generated member code (e.g. PG-0002) plus this
+                    password. Leave empty to use the default <code>test@123</code>.
+                  </p>
+                  {errors.loginPassword ? (
+                    <p className="text-xs text-destructive">{errors.loginPassword.message}</p>
                   ) : null}
                 </div>
               </div>

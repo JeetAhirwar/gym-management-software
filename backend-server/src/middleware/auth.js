@@ -7,6 +7,7 @@ import { can } from "../lib/permissions.js";
 /** Verify the Bearer token and attach req.user = { id, gymId, role, fullName, email }. */
 export async function requireAuth(req, _res, next) {
   try {
+    if (req.user) return next(); // already resolved by an earlier mount
     const header = req.headers.authorization || "";
     const [scheme, token] = header.split(" ");
     if (scheme !== "Bearer" || !token) throw unauthorized();
@@ -29,6 +30,7 @@ export async function requireAuth(req, _res, next) {
       role: user.role,
       fullName: user.fullName,
       email: user.email ?? null,
+      memberId: user.memberId ? String(user.memberId) : null,
     };
     next();
   } catch (err) {

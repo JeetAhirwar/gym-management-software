@@ -83,6 +83,11 @@ class DemoAuthProvider implements AuthProvider {
     };
   }
 
+  async signInMember(_memberCode: string, _password: string): Promise<AuthSession> {
+    // The demo dataset has no member accounts — members need the live backend.
+    throw new Error("Member login is only available with a live backend.");
+  }
+
   async signOut(): Promise<void> {
     if (typeof window !== "undefined") window.sessionStorage.removeItem(DEMO_SESSION_KEY);
   }

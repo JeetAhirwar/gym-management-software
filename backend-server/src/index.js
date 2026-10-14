@@ -3,9 +3,11 @@ import express from "express";
 import { pathToFileURL } from "node:url";
 import config from "./config.js";
 import { connectDb } from "./db.js";
-import { ApiError } from "./lib/errors.js";
+import { ApiError, forbidden } from "./lib/errors.js";
+import { requireAuth } from "./middleware/auth.js";
 
 import authRoutes from "./routes/auth.js";
+import meRoutes from "./routes/me.js";
 import gymRoutes from "./routes/gym.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import memberRoutes from "./routes/members.js";
@@ -86,6 +88,16 @@ export function buildApp() {
   });
 
   app.use("/api/auth", authRoutes);
+  // Member portal: own profile / QR / attendance / payments / password.
+  app.use("/api/me", meRoutes);
+  // After /api/me: members are staff-blocked. The one exception is reading the
+  // gym branding so the portal header can render (session building).
+  app.use("/api", requireAuth, (req, _res, next) => {
+    if (req.user?.role !== "member") return next();
+    if (req.method === "GET" && req.path === "/gym") return next();
+    return next(forbidden("Member accounts can only access their own portal", "member_forbidden"));
+  });
+
   app.use("/api", gymRoutes);
   app.use("/api", dashboardRoutes);
   app.use("/api", memberRoutes);

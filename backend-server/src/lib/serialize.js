@@ -48,14 +48,17 @@ export function toSettings(doc) {
 
 export function toPublicUser(doc) {
   if (!doc) return null;
+  const isMember = doc.role === "member";
   return {
     id: id(doc._id),
     fullName: doc.fullName,
-    email: doc.email ?? null,
+    // Member logins use a synthetic address — never expose it.
+    email: isMember ? null : (doc.email ?? null),
     role: doc.role,
     gymId: id(doc.gymId),
     avatarUrl: doc.avatarUrl ?? null,
     phone: doc.phone ?? null,
+    memberId: doc.memberId ? id(doc.memberId) : undefined,
   };
 }
 

@@ -12,6 +12,7 @@ interface AuthContextValue {
   error: string | null;
   mode: "api" | "demo" | "unconfigured";
   signIn: (email: string, password: string) => Promise<void>;
+  signInMember: (memberCode: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -61,6 +62,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  /** Members sign in with their member code (e.g. "PG-0001") + password. */
+  const signInMember = useCallback(
+    async (memberCode: string, password: string) => {
+      const next = await getAuthProvider().signInMember(memberCode, password);
+      setSession(next);
+      setError(null);
+      toast.success(`Welcome back, ${next.profile.fullName.split(" ")[0]}`);
+    },
+    [],
+  );
+
   const signOut = useCallback(async () => {
     await getAuthProvider().signOut();
     setSession(null);
@@ -70,8 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const data = useMemo(() => (session ? getDataService(session) : null), [session]);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ session, data, loading, error, mode, signIn, signOut, refresh }),
-    [session, data, loading, error, mode, signIn, signOut, refresh],
+    () => ({ session, data, loading, error, mode, signIn, signInMember, signOut, refresh }),
+    [session, data, loading, error, mode, signIn, signInMember, signOut, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

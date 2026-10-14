@@ -20,6 +20,7 @@ import { parseDateOnly, ymdInTz } from "../lib/dates.js";
 import { loadGymContext } from "../services/context.js";
 import { decorateAllMembers, decorateMember } from "../services/members.js";
 import { createPaymentRow } from "../services/payments.js";
+import { ensureMemberLogin } from "../lib/memberLogins.js";
 
 const router = Router();
 
@@ -58,11 +59,13 @@ const createMemberSchema = z.object({
   planId: z.string().min(1, "Plan is required"),
   membershipStart: z.string().min(4, "Membership start is required"),
   initialPayment: initialPaymentSchema.nullish(),
+  /** Optional portal password for the member's own login (default: test@123). */
+  loginPassword: z.string().min(6, "Portal password must be at least 6 characters").max(72).optional(),
 });
 
 const updateMemberSchema = createMemberSchema
   .partial()
-  .omit({ planId: true, membershipStart: true, initialPayment: true })
+  .omit({ planId: true, membershipStart: true, initialPayment: true, loginPassword: true })
   .extend({ status: z.enum(["active", "inactive"]).optional() });
 
 const renewSchema = z.object({
@@ -229,6 +232,19 @@ router.post(
             },
           ],
           { session },
+        );
+
+        // Portal login: the member can sign in with their member code.
+        await ensureMemberLogin(
+          {
+            gymId,
+            memberId: member._id,
+            memberCode,
+            fullName: input.fullName,
+            phone: input.phone,
+            password: input.loginPassword,
+          },
+          session,
         );
 
         const start = input.membershipStart

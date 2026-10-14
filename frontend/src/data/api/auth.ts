@@ -2,6 +2,7 @@ import type { AuthSession, Gym, Profile } from "@/types";
 import type { AuthProvider } from "@/data/types";
 import { apiGet, apiPost, ApiError, getAuthToken, setAuthToken } from "@/data/api/client";
 import { loadGym, type ApiUser } from "@/data/api/service";
+import { gymTimezone } from "@/lib/datetime";
 
 type AuthListener = (session: AuthSession | null) => void;
 
@@ -26,7 +27,6 @@ function userFromMeResponse(payload: unknown): ApiUser | null {
  * login/sign-out — no websockets involved.
  */
 export class ApiAuthProvider implements AuthProvider {
-  /** Literal is "api"; typed as the contract's union because `src/data/types.ts` is frozen. */
   readonly mode = "api" as const;
 
   private listeners = new Set<AuthListener>();
@@ -35,8 +35,38 @@ export class ApiAuthProvider implements AuthProvider {
     for (const listener of this.listeners) listener(session);
   }
 
+  /**
+   * The gym record powers the header/branding everywhere. Staff reach it via
+   * GET /gym; member tokens are scoped to /me only, whose payload carries the
+   * gym name + timezone — so fall back to that before giving up.
+   */
+  private async resolveGym(user: ApiUser): Promise<Gym> {
+    try {
+      return await loadGym();
+    } catch (err) {
+      if (user.role !== "member") throw err;
+      const payload = await apiGet<{ gym?: Partial<Gym> }>("/me");
+      const now = new Date().toISOString();
+      const fallback = payload?.gym ?? {};
+      return {
+        id: user.gymId,
+        name: fallback.name ?? "Member portal",
+        slug: fallback.slug ?? "",
+        timezone: fallback.timezone ?? gymTimezone,
+        currency: fallback.currency ?? "INR",
+        logoUrl: fallback.logoUrl ?? null,
+        address: fallback.address ?? null,
+        phone: fallback.phone ?? null,
+        email: fallback.email ?? null,
+        isActive: fallback.isActive ?? true,
+        createdAt: fallback.createdAt ?? now,
+        updatedAt: fallback.updatedAt ?? now,
+      };
+    }
+  }
+
   private async buildSession(user: ApiUser): Promise<AuthSession> {
-    const gym: Gym = await loadGym();
+    const gym = await this.resolveGym(user);
     const now = new Date().toISOString();
     const profile: Profile = {
       id: user.id,
@@ -78,6 +108,25 @@ export class ApiAuthProvider implements AuthProvider {
   /** Alias matching the UI's vocabulary (`signIn` is the contract method). */
   login(email: string, password: string): Promise<AuthSession> {
     return this.signIn(email, password);
+  }
+
+  /**
+   * Member sign-in: same endpoint and token storage as staff, but the identity
+   * is the member code (e.g. "PG-0001"). Server messages are surfaced as-is so
+   * the login screen can show exactly what went wrong.
+   */
+  async signInMember(memberCode: string, password: string): Promise<AuthSession> {
+    try {
+      const payload = await apiPost<LoginResponse>("/auth/login", { memberCode, password });
+      setAuthToken(payload.token);
+      const session = await this.buildSession(payload.user);
+      this.emit(session);
+      return session;
+    } catch (err) {
+      // Never keep a token around when the session could not be assembled.
+      setAuthToken(null);
+      throw err;
+    }
   }
 
   async getSession(): Promise<AuthSession | null> {

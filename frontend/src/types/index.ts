@@ -3,12 +3,15 @@
  * Field names are camelCase — the API returns these shapes directly.
  */
 
-export type UserRole = "owner" | "admin" | "front_desk" | "trainer";
+export type UserRole = "owner" | "admin" | "front_desk" | "trainer" | "member";
 
 export type Gender = "male" | "female" | "other" | "prefer_not_to_say";
 
 /** Stored membership state (never derived). */
 export type StoredMembershipStatus = "active" | "suspended" | "inactive" | "cancelled";
+
+/** API-contract name for the stored membership status. */
+export type MembershipStatus = StoredMembershipStatus;
 
 /**
  * Effective status shown across the UI: stored state + date math in gym timezone.
@@ -165,6 +168,41 @@ export interface MemberWithMembership extends Member {
   daysRemaining: number | null;
 }
 
+/* ------------------------------------------------------------------ */
+/*  Member self-service portal                                         */
+/* ------------------------------------------------------------------ */
+
+/** The signed-in member's current membership as served by GET /api/me. */
+export interface MyMembership {
+  id: string;
+  planId: string;
+  planName: string | null;
+  planDurationValue: number | null;
+  planDurationUnit: DurationUnit | null;
+  startDate: string;
+  endDate: string;
+  status: MembershipStatus;
+  price: number;
+}
+
+/** Everything a member may see about themselves — never anyone else's data. */
+export interface MyMemberProfile {
+  id: string;
+  memberCode: string;
+  fullName: string;
+  phone: string | null;
+  email: string | null;
+  photoUrl: string | null;
+  gender: Gender | null;
+  dateOfBirth: string | null;
+  joinDate: string;
+  status: MemberStatus;
+  qrStatus: "active" | "revoked";
+  membership: MyMembership | null;
+  effectiveStatus: "active" | "expiring_soon" | "expired" | "suspended" | "none";
+  daysRemaining: number | null;
+}
+
 export interface AttendanceRecord {
   id: string;
   gymId: string;
@@ -214,7 +252,8 @@ export interface StaffProfile {
   fullName: string;
   email: string | null;
   phone: string | null;
-  role: UserRole;
+  /** Staff rows are never member accounts — the portal role can't appear here. */
+  role: Exclude<UserRole, "member">;
   specialization: string | null;
   employmentStatus: EmploymentStatus;
   joiningDate: string;

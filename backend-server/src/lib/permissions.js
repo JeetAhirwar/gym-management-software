@@ -3,7 +3,7 @@
  * The backend enforces these with requireCap() middleware.
  */
 
-export const ROLES = ["owner", "admin", "front_desk", "trainer"];
+export const ROLES = ["owner", "admin", "front_desk", "trainer", "member"];
 
 const OWNER = [
   "members.view", "members.create", "members.edit", "members.delete", "members.export",
@@ -31,6 +31,8 @@ const ROLE_CAPABILITIES = {
   admin: OWNER.filter((c) => c !== "members.delete"),
   front_desk: FRONT_DESK,
   trainer: TRAINER,
+  /** Members see only their own portal (no staff capabilities). */
+  member: [],
 };
 
 /** Roles allowed to record money movements or change financial settings. */

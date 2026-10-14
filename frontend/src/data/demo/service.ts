@@ -7,6 +7,7 @@ import type {
   DuesRow,
   DashboardStats,
   EnrollmentStatus,
+  EffectiveMembershipStatus,
   Gym,
   GymClass,
   GymSettings,
@@ -18,6 +19,8 @@ import type {
   MemberWithMembership,
   MembershipPlan,
   MonthRevenue,
+  MyMemberProfile,
+  MyMembership,
   Paginated,
   PaymentRecord,
   PeakHour,
@@ -77,6 +80,13 @@ function ymd(d: Date): string {
 
 function uid(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36).slice(-4)}`;
+}
+
+/** The portal contract narrows the derived status union — map into it. */
+function toMyEffectiveStatus(status: EffectiveMembershipStatus): MyMemberProfile["effectiveStatus"] {
+  if (status === "active" || status === "expiring_soon" || status === "expired" || status === "none") return status;
+  // A deactivated member / cancelled row both read as "not usable" in the portal.
+  return "suspended";
 }
 
 export class DemoDataService implements DataService {
@@ -1068,6 +1078,71 @@ export class DemoDataService implements DataService {
       });
     }
     return out;
+  }
+
+  /* ------------------------- member self-service --------------------- */
+
+  /** Demo "signed-in member": DEMO-9001 when seeded, else Aarav Sharma. */
+  private demoMe(): Member {
+    const member =
+      this.db.members.find((m) => m.memberCode === "DEMO-9001") ??
+      this.db.members.find((m) => m.fullName === "Aarav Sharma") ??
+      this.db.members[0];
+    if (!member) throw new DataError("not_found", "No demo member is available.");
+    return member;
+  }
+
+  async getMyMemberProfile(): Promise<MyMemberProfile> {
+    const member = this.demoMe();
+    const row = this.withMembership(member);
+    const current = row.membership;
+    const membership: MyMembership | null = current
+      ? {
+          id: current.id,
+          planId: current.planId,
+          planName: current.planName ?? null,
+          planDurationValue: current.planDurationValue ?? null,
+          planDurationUnit: current.planDurationUnit ?? null,
+          startDate: current.startDate,
+          endDate: current.endDate,
+          status: current.status,
+          price: current.price,
+        }
+      : null;
+    return {
+      id: member.id,
+      memberCode: member.memberCode,
+      fullName: member.fullName,
+      phone: member.phone || null,
+      email: member.email ?? null,
+      photoUrl: member.photoUrl ?? null,
+      gender: member.gender ?? null,
+      dateOfBirth: member.dateOfBirth ?? null,
+      joinDate: member.joinDate,
+      status: member.status,
+      qrStatus: member.qrStatus,
+      membership,
+      effectiveStatus: toMyEffectiveStatus(row.effectiveStatus),
+      daysRemaining: row.daysRemaining,
+    };
+  }
+
+  async getMyQr(): Promise<{ token: string; status: "active" | "revoked" }> {
+    const member = this.demoMe();
+    return { token: member.qrToken, status: member.qrStatus };
+  }
+
+  async listMyAttendance(limit = 30): Promise<AttendanceRecord[]> {
+    return this.listMemberAttendance(this.demoMe().id, limit);
+  }
+
+  async listMyPayments(): Promise<PaymentRecord[]> {
+    const page = await this.listPayments({ memberId: this.demoMe().id, pageSize: 100 });
+    return page.items;
+  }
+
+  async changeMyPassword(): Promise<void> {
+    throw new DataError("not_supported", "Changing your password is not supported in demo mode.");
   }
 
   /* -------------------------------- staff ---------------------------- */

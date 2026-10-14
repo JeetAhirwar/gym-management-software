@@ -37,6 +37,10 @@ export const memberFormSchema = z
     joinDate: dateOnlySchema,
     planId: z.string().min(1, "Choose a membership plan"),
     membershipStart: dateOnlySchema,
+    loginPassword: z
+      .string()
+      .optional()
+      .refine((v) => !v || v.trim().length >= 6, "Portal password must be at least 6 characters"),
     initialPayment: z
       .number()
       .min(0, "Amount cannot be negative")

@@ -53,12 +53,16 @@ const TRAINER: Capability[] = [
   "members.view", "plans.view", "attendance.view", "classes.view", "notifications.view",
 ];
 
+/** Members self-serve their own data from the portal — zero staff capabilities. */
+const MEMBER: Capability[] = [];
+
 const ROLE_CAPABILITIES: Record<UserRole, Capability[]> = {
   owner: OWNER,
   /** Admins share owner capabilities except destructive member deletion. */
   admin: OWNER.filter((c) => c !== "members.delete"),
   front_desk: FRONT_DESK,
   trainer: TRAINER,
+  member: MEMBER,
 };
 
 /** Roles allowed to record money movements or change financial settings. */
@@ -83,4 +87,5 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Admin",
   front_desk: "Front desk",
   trainer: "Trainer",
+  member: "Member",
 };

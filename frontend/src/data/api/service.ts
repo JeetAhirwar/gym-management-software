@@ -7,9 +7,12 @@ import type {
   CheckInResult,
   ClassEnrollment,
   DayCount,
+  DurationUnit,
   DuesRow,
   DashboardStats,
+  EffectiveMembershipStatus,
   EnrollmentStatus,
+  Gender,
   Gym,
   GymClass,
   GymSettings,
@@ -20,7 +23,10 @@ import type {
   MemberStatus,
   MemberWithMembership,
   MembershipPlan,
+  MembershipStatus,
   MonthRevenue,
+  MyMemberProfile,
+  MyMembership,
   Paginated,
   PaymentQuery,
   PaymentRecord,
@@ -81,6 +87,49 @@ interface RawCheckInResponse {
   member?: CheckInMemberSummary;
 }
 
+/** GET /api/me `member.membership` — plan details may be missing until joined. */
+interface ApiMyMembership {
+  id: string;
+  planId: string;
+  planName?: string | null;
+  planDurationValue?: number | null;
+  planDurationUnit?: DurationUnit | null;
+  startDate: string;
+  endDate: string;
+  status: MembershipStatus;
+  price: number;
+}
+
+/** GET /api/me `member` — derived fields are computed below when omitted. */
+interface ApiMyMember {
+  id: string;
+  memberCode: string;
+  fullName: string;
+  phone?: string | null;
+  email?: string | null;
+  photoUrl?: string | null;
+  gender?: Gender | null;
+  dateOfBirth?: string | null;
+  joinDate: string;
+  status: MemberStatus;
+  qrStatus?: "active" | "revoked";
+  membership?: ApiMyMembership | null;
+  effectiveStatus?: MyMemberProfile["effectiveStatus"] | null;
+  daysRemaining?: number | null;
+}
+
+interface ApiMeResponse {
+  member?: ApiMyMember;
+  gym?: { name?: string; timezone?: string } | null;
+}
+
+/** The portal contract narrows the derived status union — map into it. */
+function toMyEffectiveStatus(status: EffectiveMembershipStatus): MyMemberProfile["effectiveStatus"] {
+  if (status === "active" || status === "expiring_soon" || status === "expired" || status === "none") return status;
+  // A deactivated member / cancelled row both read as "not usable" in the portal.
+  return "suspended";
+}
+
 /* ------------------------------------------------------------------ */
 /*  Cached gym (shared by the auth + data services)                    */
 /* ------------------------------------------------------------------ */
@@ -114,7 +163,6 @@ export function invalidateGymCache(): void {
  * already sent it.
  */
 export class ApiDataService implements DataService {
-  /** Literal is "api"; typed as the contract's union because `src/data/types.ts` is frozen. */
   readonly mode = "api" as const;
 
   private readonly gymId: string;
@@ -497,6 +545,93 @@ export class ApiDataService implements DataService {
 
   async getRevenueSummary(months: number): Promise<RevenueSummary[]> {
     return apiGet<RevenueSummary[]>("/payments/revenue", { months });
+  }
+
+  /* ------------------------- member self-service --------------------- */
+
+  /** Fill in plan details when /me did not join them (best-effort: a member token may not list plans). */
+  private async decorateMyMembership(row: ApiMyMembership): Promise<MyMembership> {
+    const base: MyMembership = {
+      id: row.id,
+      planId: row.planId,
+      planName: row.planName ?? null,
+      planDurationValue: row.planDurationValue ?? null,
+      planDurationUnit: row.planDurationUnit ?? null,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      status: row.status,
+      price: row.price,
+    };
+    if (base.planName && base.planDurationValue !== null && base.planDurationUnit) return base;
+    try {
+      const plan = (await this.plans()).find((p) => p.id === base.planId);
+      if (!plan) return base;
+      return {
+        ...base,
+        planName: base.planName ?? plan.name,
+        planDurationValue: base.planDurationValue ?? plan.durationValue,
+        planDurationUnit: base.planDurationUnit ?? plan.durationUnit,
+      };
+    } catch {
+      return base; // keep whatever the API sent — never fail decoration
+    }
+  }
+
+  async getMyMemberProfile(): Promise<MyMemberProfile> {
+    const payload = await apiGet<ApiMeResponse>("/me");
+    const raw = payload?.member;
+    if (!raw || typeof raw.id !== "string") {
+      throw new ApiError(500, "server_error", "The server returned an unexpected profile response.");
+    }
+    const tz = payload.gym?.timezone || (await this.tz());
+    const membership = raw.membership ? await this.decorateMyMembership(raw.membership) : null;
+    let status = raw.effectiveStatus ?? null;
+    if (!status) {
+      // /settings is staff-only — its loader already falls back to documented defaults.
+      const settings = await this.settings();
+      status = toMyEffectiveStatus(
+        effectiveStatus(membership, raw.status, new Date(), settings.expiringSoonDays, tz),
+      );
+    }
+    return {
+      id: raw.id,
+      memberCode: raw.memberCode,
+      fullName: raw.fullName,
+      phone: raw.phone ?? null,
+      email: raw.email ?? null,
+      photoUrl: raw.photoUrl ?? null,
+      gender: raw.gender ?? null,
+      dateOfBirth: raw.dateOfBirth ?? null,
+      joinDate: raw.joinDate,
+      status: raw.status,
+      qrStatus: raw.qrStatus ?? "active",
+      membership,
+      effectiveStatus: status,
+      daysRemaining: raw.daysRemaining ?? daysRemaining(membership, new Date(), tz),
+    };
+  }
+
+  async getMyQr(): Promise<{ token: string; status: "active" | "revoked" }> {
+    const payload = await apiGet<{ token?: string; status?: "active" | "revoked" }>("/me/qr");
+    if (!payload?.token) {
+      throw new ApiError(500, "server_error", "The server returned an unexpected QR response.");
+    }
+    return { token: payload.token, status: payload.status === "revoked" ? "revoked" : "active" };
+  }
+
+  async listMyAttendance(limit = 30): Promise<AttendanceRecord[]> {
+    const rows = await apiGet<AttendanceRecord[]>("/me/attendance", { limit });
+    return rows ?? [];
+  }
+
+  async listMyPayments(): Promise<PaymentRecord[]> {
+    const rows = await apiGet<PaymentRecord[]>("/me/payments");
+    return rows ?? [];
+  }
+
+  async changeMyPassword(currentPassword: string, newPassword: string): Promise<void> {
+    // 204 on success; 403 (wrong current password) surfaces as an ApiError with the server message.
+    await apiPost<void>("/me/password", { currentPassword, newPassword });
   }
 
   /* -------------------------------- staff ---------------------------- */

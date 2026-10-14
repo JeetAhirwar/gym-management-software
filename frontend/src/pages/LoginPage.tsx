@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "motion/react";
+import { z } from "zod";
 import {
   AlertTriangleIcon,
   BarChart3Icon,
@@ -25,12 +26,22 @@ import { DEMO_CREDENTIALS } from "@/data";
 const HERO_IMAGE =
   "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=1600&q=70";
 
+/** Members identify themselves with their member code (e.g. "PG-0001"). */
+const memberLoginSchema = z.object({
+  memberCode: z.string().trim().min(3, "Enter your member code (e.g. PG-0001)"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+type MemberLoginFormValues = z.infer<typeof memberLoginSchema>;
+
 export function LoginPage() {
-  const { session, signIn, loading, mode } = useAuth();
+  const { session, signIn, signInMember, loading, mode } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  /** false → staff form, true → member-code form. */
+  const [asMember, setAsMember] = useState(false);
 
   const from = (location.state as { from?: string } | null)?.from ?? "/";
 
@@ -44,6 +55,15 @@ export function LoginPage() {
     defaultValues: { email: mode === "demo" ? DEMO_CREDENTIALS.email : "", password: mode === "demo" ? DEMO_CREDENTIALS.password : "" },
   });
 
+  const {
+    register: registerMember,
+    handleSubmit: handleMemberSubmit,
+    formState: { errors: memberErrors, isSubmitting: memberSubmitting },
+  } = useForm<MemberLoginFormValues>({
+    resolver: zodResolver(memberLoginSchema),
+    defaultValues: { memberCode: "", password: "" },
+  });
+
   if (!loading && session) return <Navigate to={from} replace />;
 
   const onSubmit = handleSubmit(async (values) => {
@@ -55,6 +75,21 @@ export function LoginPage() {
       setServerError(error instanceof Error ? error.message : "Sign in failed.");
     }
   });
+
+  const onMemberSubmit = handleMemberSubmit(async (values) => {
+    setServerError(null);
+    try {
+      await signInMember(values.memberCode.trim(), values.password);
+      navigate(from, { replace: true });
+    } catch (error) {
+      setServerError(error instanceof Error ? error.message : "Sign in failed.");
+    }
+  });
+
+  const toggleForm = () => {
+    setServerError(null);
+    setAsMember((value) => !value);
+  };
 
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
@@ -133,9 +168,13 @@ export function LoginPage() {
           </div>
 
           <div className="space-y-1">
-            <h2 className="text-2xl font-semibold tracking-tight">Sign in</h2>
+            <h2 className="text-2xl font-semibold tracking-tight">
+              {asMember ? "Member sign in" : "Sign in"}
+            </h2>
             <p className="text-sm text-muted-foreground">
-              Use your staff account to access the dashboard.
+              {asMember
+                ? "Use your member code to see your own membership and visits."
+                : "Use your staff account to access the dashboard."}
             </p>
           </div>
 
@@ -159,48 +198,105 @@ export function LoginPage() {
             </Alert>
           ) : null}
 
-          <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
-            {serverError ? (
-              <Alert variant="destructive" className="border-destructive/40">
-                <LockKeyholeIcon className="size-4" />
-                <AlertTitle>Sign in failed</AlertTitle>
-                <AlertDescription>{serverError}</AlertDescription>
-              </Alert>
-            ) : null}
+          {serverError ? (
+            <Alert variant="destructive" className="mt-6 border-destructive/40">
+              <LockKeyholeIcon className="size-4" />
+              <AlertTitle>Sign in failed</AlertTitle>
+              <AlertDescription>{serverError}</AlertDescription>
+            </Alert>
+          ) : null}
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" autoComplete="email" placeholder="you@gym.com" {...register("email")} />
-              {errors.email ? <p className="text-xs text-destructive">{errors.email.message}</p> : null}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
+          {asMember ? (
+            <form onSubmit={onMemberSubmit} className="mt-6 space-y-4" noValidate>
+              <div className="space-y-2">
+                <Label htmlFor="member-code">Member code</Label>
                 <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  {...register("password")}
+                  id="member-code"
+                  type="text"
+                  autoComplete="username"
+                  placeholder="e.g. PG-0001"
+                  {...registerMember("memberCode")}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((value) => !value)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                  className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1.5 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
-                </button>
+                {memberErrors.memberCode ? (
+                  <p className="text-xs text-destructive">{memberErrors.memberCode.message}</p>
+                ) : null}
               </div>
-              {errors.password ? <p className="text-xs text-destructive">{errors.password.message}</p> : null}
-            </div>
 
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2Icon className="size-4 animate-spin" /> : null}
-              {isSubmitting ? "Signing in…" : "Sign in"}
-            </Button>
-          </form>
+              <div className="space-y-2">
+                <Label htmlFor="member-password">Password</Label>
+                <div className="relative">
+                  <Input
+                    id="member-password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    {...registerMember("password")}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((value) => !value)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1.5 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+                  </button>
+                </div>
+                {memberErrors.password ? (
+                  <p className="text-xs text-destructive">{memberErrors.password.message}</p>
+                ) : null}
+              </div>
+
+              <Button type="submit" className="w-full" disabled={memberSubmitting}>
+                {memberSubmitting ? <Loader2Icon className="size-4 animate-spin" /> : null}
+                {memberSubmitting ? "Signing in…" : "Sign in"}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={onSubmit} className="mt-6 space-y-4" noValidate>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" autoComplete="email" placeholder="you@gym.com" {...register("email")} />
+                {errors.email ? <p className="text-xs text-destructive">{errors.email.message}</p> : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    {...register("password")}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((value) => !value)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1.5 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+                  </button>
+                </div>
+                {errors.password ? <p className="text-xs text-destructive">{errors.password.message}</p> : null}
+              </div>
+
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? <Loader2Icon className="size-4 animate-spin" /> : null}
+                {isSubmitting ? "Signing in…" : "Sign in"}
+              </Button>
+            </form>
+          )}
+
+          <div className="mt-5 text-center">
+            <button
+              type="button"
+              onClick={toggleForm}
+              className="text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            >
+              {asMember ? "Staff sign in" : "Member? Sign in with your member code"}
+            </button>
+          </div>
 
           <ul className="mt-8 grid gap-3 border-t border-border/70 pt-6">
             {[
