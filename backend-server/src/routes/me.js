@@ -7,6 +7,9 @@ import MemberMembership from "../models/MemberMembership.js";
 import MembershipPlan from "../models/MembershipPlan.js";
 import AttendanceRecord from "../models/AttendanceRecord.js";
 import PaymentRecord from "../models/PaymentRecord.js";
+import ClassEnrollment from "../models/ClassEnrollment.js";
+import GymClass from "../models/GymClass.js";
+import StaffProfile from "../models/StaffProfile.js";
 import { requireAuth } from "../middleware/auth.js";
 import { asyncHandler, forbidden, notFound } from "../lib/errors.js";
 import { parseBody } from "../middleware/validate.js";
@@ -15,6 +18,8 @@ import {
   toMemberWithMembership,
   toAttendance,
   toPayment,
+  toClass,
+  toEnrollment,
 } from "../lib/serialize.js";
 import { currentMembership } from "../lib/membership.js";
 import { loadGymContext } from "../services/context.js";
@@ -127,6 +132,45 @@ router.get(
         const plan = membership ? planById.get(String(membership.planId)) : null;
         return toPayment(row, member, membership, plan);
       }),
+    );
+  }),
+);
+
+/** GET /api/me/classes → own enrollments joined with the class schedule. */
+router.get(
+  "/classes",
+  asyncHandler(async (req, res) => {
+    const member = await loadSelf(req);
+    const enrollments = await ClassEnrollment.find({
+      gymId: req.user.gymId,
+      memberId: member._id,
+      status: { $ne: "cancelled" },
+    }).lean();
+
+    const classes = await GymClass.find({ _id: { $in: enrollments.map((e) => e.classId) } }).lean();
+    const classById = new Map(classes.map((c) => [String(c._id), c]));
+    const trainerIds = [...new Set(classes.map((c) => c.trainerId).filter(Boolean).map(String))];
+    const trainers = trainerIds.length
+      ? await StaffProfile.find({ _id: { $in: trainerIds } }).lean()
+      : [];
+    const trainerById = new Map(trainers.map((t) => [String(t._id), t]));
+
+    res.json(
+      enrollments
+        .map((enrollment) => {
+          const cls = classById.get(String(enrollment.classId));
+          if (!cls) return null;
+          return {
+            enrollment: toEnrollment(enrollment, member),
+            class: toClass(
+              cls,
+              cls.trainerId ? trainerById.get(String(cls.trainerId)) : null,
+              null,
+            ),
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => new Date(a.class.startsAt) - new Date(b.class.startsAt)),
     );
   }),
 );
