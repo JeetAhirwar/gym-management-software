@@ -935,6 +935,9 @@ export class DemoDataService {
         const member = this.demoMe();
         const row = this.withMembership(member);
         const current = row.membership;
+        const paidPayments = current
+            ? this.db.payments.filter((p) => p.membershipId === current.id && (p.status === "paid" || p.status === "partial"))
+            : [];
         const membership = current
             ? {
                 id: current.id,
@@ -946,6 +949,9 @@ export class DemoDataService {
                 endDate: current.endDate,
                 status: current.status,
                 price: current.price,
+                billed: Math.max(0, current.price - current.discount),
+                paid: Math.round(paidPayments.reduce((sum, p) => sum + p.amount, 0) * 100) / 100,
+                balance: membershipBalance(current.price, current.discount, paidPayments),
             }
             : null;
         return {

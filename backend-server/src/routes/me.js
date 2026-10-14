@@ -21,7 +21,7 @@ import {
   toClass,
   toEnrollment,
 } from "../lib/serialize.js";
-import { currentMembership } from "../lib/membership.js";
+import { currentMembership, membershipBalance } from "../lib/membership.js";
 import { loadGymContext } from "../services/context.js";
 import { writeAudit } from "../lib/audit.js";
 
@@ -73,13 +73,32 @@ router.get(
     const plan = membership ? await MembershipPlan.findById(membership.planId).lean() : null;
     const user = await User.findById(req.user.id).lean();
 
+    // Billing snapshot for the portal — same formula as staff dues (getDuesRows).
+    let billing = null;
+    if (membership) {
+      const payments = await PaymentRecord.find({
+        gymId: req.user.gymId,
+        membershipId: membership._id,
+        status: { $in: ["paid", "partial"] },
+      }).select("amount status").lean();
+      const paid = Math.round(payments.reduce((sum, p) => sum + (p.amount ?? 0), 0) * 100) / 100;
+      billing = {
+        billed: Math.max(0, (membership.price ?? 0) - (membership.discount ?? 0)),
+        paid,
+        balance: membershipBalance(membership.price, membership.discount, payments),
+      };
+    }
+
+    const memberJson = toMemberWithMembership(member, membership, plan, {
+      now: ctx.now,
+      tz: ctx.tz,
+      expiringSoonDays: ctx.expiringSoonDays,
+    });
+    if (memberJson?.membership && billing) Object.assign(memberJson.membership, billing);
+
     res.json({
       user: toPublicUser(user),
-      member: toMemberWithMembership(member, membership, plan, {
-        now: ctx.now,
-        tz: ctx.tz,
-        expiringSoonDays: ctx.expiringSoonDays,
-      }),
+      member: memberJson,
       gym: { name: ctx.gym.name, timezone: ctx.tz },
     });
   }),

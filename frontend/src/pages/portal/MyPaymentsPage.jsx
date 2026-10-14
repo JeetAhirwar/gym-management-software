@@ -14,6 +14,8 @@ import { ReceiptStubs } from "./ReceiptStubs";
 export function MyPaymentsPage() {
     const data = useData();
     const payments = useAsync(() => data.listMyPayments(), [data]);
+    const profile = useAsync(() => data.getMyMemberProfile(), [data]);
+    const membership = profile.data?.membership ?? null;
     const rows = useMemo(() => payments.data ?? [], [payments.data]);
     const summary = useMemo(() => {
         const paidTotal = rows
@@ -30,6 +32,7 @@ export function MyPaymentsPage() {
             { label: "Receipts", value: payments.loading && !payments.data ? "…" : rows.length, sub: "on file" },
             { label: "Paid to date", value: payments.loading && !payments.data ? "…" : formatINR(summary.paidTotal), sub: "settled payments" },
             { label: "Last payment", value: summary.last ? formatDate(summary.last.paymentDate) : "—", sub: summary.last ? (PAYMENT_METHOD_LABELS[summary.last.method] ?? "—") : "nothing yet" },
+            { label: "Balance due", value: profile.loading && !profile.data ? "…" : membership?.balance != null ? formatINR(membership.balance) : "—", sub: profile.loading && !profile.data ? "checking…" : membership?.balance > 0 ? "payable at the front desk" : membership ? "nothing owed" : "no active plan" },
         ]}/>
       </Settle>
 

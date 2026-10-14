@@ -374,6 +374,9 @@ export class ApiDataService {
             endDate: row.endDate,
             status: row.status,
             price: row.price,
+            billed: row.billed ?? null,
+            paid: row.paid ?? null,
+            balance: row.balance ?? null,
         };
         if (base.planName && base.planDurationValue !== null && base.planDurationUnit)
             return base;

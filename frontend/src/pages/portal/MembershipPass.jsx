@@ -3,7 +3,7 @@ import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } fro
 import { QrCodeIcon, RotateCcwIcon } from "lucide-react";
 import { SmartImage } from "@/components/shared/SmartImage";
 import { Skeleton } from "@/components/shared/States";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatINR } from "@/lib/format";
 import { tokenHint } from "@/lib/qr";
 import { cn } from "@/lib/utils";
 import { membershipProgress } from "./paper";
@@ -118,6 +118,9 @@ export function MembershipPass({ profile, qr, qrDataUrl }) {
                   <p className="font-mono text-[10px] tracking-wide text-paper-foreground/60">
                     {formatDate(membership?.startDate)} — {formatDate(membership?.endDate)}
                   </p>
+                  {membership?.balance != null ? (<p className={cn("font-mono text-[10px] font-semibold tracking-wide", membership.balance > 0 ? "text-[#a3601f]" : "text-[#3f7d51]")}>
+                      {membership.balance > 0 ? `Due ${formatINR(membership.balance)}` : "Paid in full"}
+                    </p>) : null}
                   <button type="button" onClick={() => setFlipped(true)} aria-pressed={flipped} className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-transform hover:scale-[1.04] focus-visible:outline-2 focus-visible:outline-offset-2">
                     <QrCodeIcon className="size-3.5"/> Show QR
                   </button>
