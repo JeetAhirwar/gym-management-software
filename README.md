@@ -2,7 +2,7 @@
 
 A premium, responsive gym management system with **QR-code attendance** at its core — memberships, payments & receipts, trainers, classes, reports and notifications.
 
-**MERN stack**: MongoDB Atlas + Express + React 19 (Vite, TypeScript) + Node.js.
+**MERN stack**: MongoDB Atlas + Express + React 19 (Vite, JavaScript) + Node.js.
 
 Dark graphite UI with volt-yellow accents, paper-inspired editorial textures and subtle motion — built for a real front desk, not a demo reel.
 
@@ -10,7 +10,7 @@ Dark graphite UI with volt-yellow accents, paper-inspired editorial textures and
 
 ```
 backend-server/   # Express + Mongoose REST API (JWT auth, port 4000)
-frontend/         # React + Vite + TypeScript SPA
+frontend/         # React + Vite + JavaScript SPA
 ```
 
 ## Features
@@ -30,7 +30,7 @@ frontend/         # React + Vite + TypeScript SPA
 
 | Layer | Choice |
 | --- | --- |
-| Frontend | React 19, TypeScript (strict), Vite 7, Tailwind v4, shadcn/ui, React Hook Form + Zod, Recharts, Motion, Lucide, html5-qrcode, Sonner |
+| Frontend | React 19, JavaScript (ESM), Vite 7, Tailwind v4, shadcn/ui, React Hook Form + Zod, Recharts, Motion, Lucide, html5-qrcode, Sonner |
 | Backend | Node.js (ESM), Express, Mongoose, JSON Web Tokens, bcryptjs, Zod |
 | Database | MongoDB Atlas |
 

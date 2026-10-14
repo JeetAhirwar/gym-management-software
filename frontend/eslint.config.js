@@ -1,33 +1,38 @@
 import js from "@eslint/js";
 import globals from "globals";
+import react from "eslint-plugin-react";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
-import tseslint from "typescript-eslint";
 
-export default tseslint.config(
+export default [
   { ignores: ["dist", "coverage", "node_modules"] },
+  js.configs.recommended,
   {
-    extends: [js.configs.recommended, ...tseslint.configs.recommended],
-    files: ["**/*.{ts,tsx}"],
+    files: ["**/*.{js,jsx}"],
     languageOptions: {
       ecmaVersion: 2022,
-      globals: globals.browser,
+      sourceType: "module",
+      globals: { ...globals.browser },
+      parserOptions: { ecmaFeatures: { jsx: true } },
     },
     plugins: {
+      react,
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
     },
     rules: {
+      // JSX component references (<Button />) count as usage.
+      "react/jsx-uses-vars": "error",
       ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
-      "@typescript-eslint/no-explicit-any": "error",
-      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+      "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },
   {
-    files: ["**/*.{test,spec}.{ts,tsx}", "tests/**/*.{ts,tsx}", "vitest.setup.ts"],
-    rules: {
-      "@typescript-eslint/no-explicit-any": "off",
+    // Vite/Vitest/ESLint config files run in Node, not the browser.
+    files: ["*.config.js", "eslint.config.js"],
+    languageOptions: {
+      globals: { ...globals.node },
     },
   },
-);
+];

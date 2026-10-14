@@ -29,13 +29,20 @@ router.post(
 
     let user = null;
     if (memberCode) {
-      // Member portal login: identify by their printed member code (PG-0001).
+      // Legacy: identify by the printed member code (PG-0001).
       const member = await Member.findOne({ memberCode: memberCode.trim().toUpperCase() })
         .select("_id")
         .lean();
       if (member) user = await User.findOne({ memberId: member._id, role: "member" }).lean();
     } else {
       user = await User.findOne({ email: email.toLowerCase() }).lean();
+      if (!user) {
+        // Member portal: the member's own (real) email → their portal login.
+        const member = await Member.findOne({ email: email.toLowerCase() })
+          .select("_id")
+          .lean();
+        if (member) user = await User.findOne({ memberId: member._id, role: "member" }).lean();
+      }
     }
 
     const ok = user && (await bcrypt.compare(password, user.passwordHash));

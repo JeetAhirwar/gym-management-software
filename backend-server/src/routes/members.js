@@ -46,7 +46,11 @@ const initialPaymentSchema = z.object({
 
 const createMemberSchema = z.object({
   fullName: z.string().trim().min(1, "Full name is required"),
-  email: optionalEmail,
+  // Required: members sign in to their portal with this email.
+  email: z
+    .union([z.string().trim().email("Enter a valid email address"), z.literal(""), z.null()])
+    .refine((v) => Boolean(v), "Email is required — members sign in with it")
+    .transform((v) => v || null),
   phone: z.string().trim().min(3, "Phone is required"),
   photoUrl: z.string().nullish(),
   dateOfBirth: z.string().nullish(),
