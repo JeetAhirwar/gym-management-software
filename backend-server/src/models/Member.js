@@ -25,6 +25,8 @@ const MemberSchema = new Schema(
     qrStatus: { type: String, enum: ["active", "revoked"], default: "active" },
     qrRotatedAt: { type: Date, default: null },
     status: { type: String, enum: ["active", "inactive"], default: "active" },
+    /** Daily time commitment agreed at joining (hours); null = not set. */
+    plannedHoursPerDay: { type: Number, default: null },
     notes: { type: String, default: null },
     createdBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     /** Internal mutex counter used to serialise concurrent check-in scans. */

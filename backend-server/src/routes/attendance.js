@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { Types } from "mongoose";
 import AttendanceRecord from "../models/AttendanceRecord.js";
+import AppNotification from "../models/AppNotification.js";
 import Member from "../models/Member.js";
 import MemberMembership from "../models/MemberMembership.js";
 import MembershipPlan from "../models/MembershipPlan.js";
@@ -17,6 +18,7 @@ import {
   addDays,
   hourInTz,
   hourLabel,
+  ymdInTz,
 } from "../lib/dates.js";
 import { loadGymContext } from "../services/context.js";
 import { runCheckIn } from "../services/checkin.js";
@@ -125,6 +127,47 @@ router.post(
       oldValues: { status: record.status, checkOut: null },
       newValues: { status: "checked_out" },
     });
+
+    // Planned-hours overage: remind the member in-app, at most once per day.
+    if (member?.plannedHoursPerDay) {
+      const ctx = await loadGymContext(record.gymId);
+      const checkedOutAt = updated.checkOut ?? new Date();
+      const dayStart = startOfDayInTz(checkedOutAt, ctx.tz);
+      const dayRows = await AttendanceRecord.find({
+        gymId: record.gymId,
+        memberId: member._id,
+        checkIn: { $gte: dayStart, $lt: new Date(dayStart.getTime() + 86_400_000) },
+      })
+        .select("checkIn checkOut")
+        .lean();
+      let ms = 0;
+      for (const row of dayRows) {
+        const endMs = row.checkOut ? new Date(row.checkOut).getTime() : checkedOutAt.getTime();
+        ms += Math.min(Math.max(0, endMs - new Date(row.checkIn).getTime()), 43_200_000);
+      }
+      const hours = Math.round((ms / 3_600_000) * 10) / 10;
+      if (hours > member.plannedHoursPerDay) {
+        const today = ymdInTz(checkedOutAt, ctx.tz);
+        const dedupeKey = `time_exceeded:${member._id}:${today}`;
+        await AppNotification.updateOne(
+          { gymId: record.gymId, dedupeKey },
+          {
+            $set: {
+              gymId: record.gymId,
+              userId: null,
+              memberId: member._id,
+              type: "general",
+              title: "You exceeded your planned gym time",
+              body: `Today you spent ${hours}h at the gym — your planned time is ${member.plannedHoursPerDay}h.`,
+              severity: "warning",
+              isRead: false,
+              dedupeKey,
+            },
+          },
+          { upsert: true },
+        );
+      }
+    }
 
     res.json(toAttendance(updated, member, scanner));
   }),
@@ -301,6 +344,95 @@ router.get(
       checkIns: rows.filter((r) => r.status === "checked_in").length,
       totalHours: Math.round((totalMs / 3_600_000) * 10) / 10,
     });
+  }),
+);
+
+/** GET /api/attendance/overtime?from&to → OvertimeRow[] (members over their planned daily hours) */
+router.get(
+  "/attendance/overtime",
+  requireAuth,
+  requireCap("attendance.view"),
+  asyncHandler(async (req, res) => {
+    const ctx = await loadGymContext(req.user.gymId);
+    const { from, to } = parseRange(req, ctx);
+    const nowMs = Math.min(ctx.now.getTime(), to.getTime());
+    const MAX_VISIT_MS = 43_200_000; // same 12h cap the summary uses
+    const rows = await AttendanceRecord.find({
+      gymId: ctx.gym._id,
+      checkIn: { $gte: from, $lte: to },
+    })
+      .select("memberId checkIn checkOut")
+      .lean();
+    const byMember = new Map();
+    const openIds = new Set();
+    for (const row of rows) {
+      const key = String(row.memberId);
+      const end = row.checkOut ? new Date(row.checkOut).getTime() : nowMs;
+      const ms = Math.min(Math.max(0, end - new Date(row.checkIn).getTime()), MAX_VISIT_MS);
+      byMember.set(key, (byMember.get(key) ?? 0) + ms);
+      if (!row.checkOut) openIds.add(key);
+    }
+    if (byMember.size === 0) return res.json([]);
+    const members = await Member.find({
+      _id: { $in: [...byMember.keys()] },
+      plannedHoursPerDay: { $gt: 0 },
+    })
+      .select("fullName memberCode photoUrl plannedHoursPerDay")
+      .lean();
+    res.json(
+      members
+        .map((m) => ({
+          memberId: String(m._id),
+          memberName: m.fullName,
+          memberCode: m.memberCode,
+          memberPhoto: m.photoUrl ?? null,
+          plannedHours: m.plannedHoursPerDay,
+          hours: Math.round((byMember.get(String(m._id)) / 3_600_000) * 10) / 10,
+          stillInside: openIds.has(String(m._id)),
+        }))
+        .filter((row) => row.hours > row.plannedHours)
+        .sort((a, b) => b.hours - a.hours),
+    );
+  }),
+);
+
+const remindCheckoutSchema = z.object({ memberId: z.string().min(1, "Member is required") });
+
+/** POST /api/attendance/remind-checkout { memberId } → { ok, alreadySent } */
+router.post(
+  "/attendance/remind-checkout",
+  requireAuth,
+  requireCap("attendance.correct"),
+  asyncHandler(async (req, res) => {
+    const input = parseBody(remindCheckoutSchema, req.body);
+    if (!Types.ObjectId.isValid(String(input.memberId))) throw notFound("Member not found");
+    const member = await Member.findOne({ _id: input.memberId, gymId: req.user.gymId }).lean();
+    if (!member) throw notFound("Member not found");
+    if (!member.plannedHoursPerDay) {
+      throw badRequest("This member has no planned hours set", "no_planned_hours");
+    }
+    const ctx = await loadGymContext(req.user.gymId);
+    const today = ymdInTz(ctx.now, ctx.tz);
+    const dedupeKey = `checkout_reminder:${member._id}:${today}`;
+    const existing = await AppNotification.findOne({ gymId: ctx.gym._id, dedupeKey }).lean();
+    await AppNotification.updateOne(
+      { gymId: ctx.gym._id, dedupeKey },
+      {
+        $set: {
+          gymId: ctx.gym._id,
+          userId: null,
+          memberId: member._id,
+          type: "general",
+          title: "Your gym time is over — please check out",
+          body: `Front desk reminder: your planned time for today (${member.plannedHoursPerDay}h) has ended. Please check out.`,
+          severity: "warning",
+          isRead: false,
+          dedupeKey,
+        },
+      },
+      { upsert: true },
+    );
+    res.json({ ok: true, alreadySent: Boolean(existing) });
   }),
 );
 

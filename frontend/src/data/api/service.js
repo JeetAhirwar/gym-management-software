@@ -317,6 +317,12 @@ export class ApiDataService {
     async correctAttendance(id, patch) {
         return apiPatch(`/attendance/${encodeURIComponent(id)}`, patch);
     }
+    async getAttendanceOvertime(from, to) {
+        return (await apiGet("/attendance/overtime", { from, to })) ?? [];
+    }
+    async remindCheckout(memberId) {
+        return apiPost("/attendance/remind-checkout", { memberId });
+    }
     rangeQuery(range) {
         return { from: range.from.toISOString(), to: range.to.toISOString() };
     }
@@ -420,6 +426,7 @@ export class ApiDataService {
             dateOfBirth: raw.dateOfBirth ?? null,
             joinDate: raw.joinDate,
             status: raw.status,
+            plannedHoursPerDay: raw.plannedHoursPerDay ?? null,
             qrStatus: raw.qrStatus ?? "active",
             membership,
             effectiveStatus: status,
@@ -448,6 +455,12 @@ export class ApiDataService {
     async changeMyPassword(currentPassword, newPassword) {
         // 204 on success; 403 (wrong current password) surfaces as an ApiError with the server message.
         await apiPost("/me/password", { currentPassword, newPassword });
+    }
+    async getMyReminders() {
+        return (await apiGet("/me/reminders")) ?? [];
+    }
+    async readMyReminders() {
+        return apiPost("/me/reminders/read");
     }
     /* -------------------------------- staff ---------------------------- */
     async listStaff(includeInactive = true) {

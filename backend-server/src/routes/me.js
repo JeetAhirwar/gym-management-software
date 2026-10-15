@@ -6,6 +6,7 @@ import Member from "../models/Member.js";
 import MemberMembership from "../models/MemberMembership.js";
 import MembershipPlan from "../models/MembershipPlan.js";
 import AttendanceRecord from "../models/AttendanceRecord.js";
+import AppNotification from "../models/AppNotification.js";
 import PaymentRecord from "../models/PaymentRecord.js";
 import ClassEnrollment from "../models/ClassEnrollment.js";
 import GymClass from "../models/GymClass.js";
@@ -221,6 +222,51 @@ router.post(
       newValues: { passwordChanged: true },
     });
     res.status(204).end();
+  }),
+);
+
+/* ------------------------------------------------------------------ */
+/*  Reminders (planned-hours nudges addressed to this member)          */
+/* ------------------------------------------------------------------ */
+
+/** GET /api/me/reminders → [{ id, title, body, severity, createdAt }] (unread) */
+router.get(
+  "/reminders",
+  asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user.id).lean();
+    if (!user?.memberId) return res.json([]);
+    const rows = await AppNotification.find({
+      gymId: req.user.gymId,
+      memberId: user.memberId,
+      isRead: false,
+    })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+    res.json(
+      rows.map((n) => ({
+        id: String(n._id),
+        title: n.title,
+        body: n.body,
+        severity: n.severity,
+        createdAt: n.createdAt,
+      })),
+    );
+  }),
+);
+
+/** POST /api/me/reminders/read → { ok: true } (clears this member's reminders) */
+router.post(
+  "/reminders/read",
+  asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user.id).lean();
+    if (user?.memberId) {
+      await AppNotification.updateMany(
+        { gymId: req.user.gymId, memberId: user.memberId, isRead: false },
+        { $set: { isRead: true } },
+      );
+    }
+    res.json({ ok: true });
   }),
 );
 

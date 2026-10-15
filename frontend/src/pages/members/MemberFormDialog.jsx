@@ -38,6 +38,8 @@ function emptyValues() {
         loginPassword: "",
         photoUrl: "",
         notes: "",
+        // NaN renders an empty number input and validates as "not set".
+        plannedHoursPerDay: Number.NaN,
     };
 }
 function trimOrNull(value) {
@@ -55,6 +57,9 @@ function toIdentityInput(values) {
         gender: values.gender ?? null,
         address: trimOrNull(values.address),
         emergencyContactName: trimOrNull(values.emergencyContactName),
+        plannedHoursPerDay: typeof values.plannedHoursPerDay === "number" && values.plannedHoursPerDay > 0
+            ? values.plannedHoursPerDay
+            : null,
         emergencyContactPhone: values.emergencyContactPhone ? values.emergencyContactPhone : null,
         joinDate: values.joinDate,
         notes: trimOrNull(values.notes),
@@ -118,6 +123,7 @@ export function MemberFormDialog({ open, onOpenChange, member, plans, onSave, })
             joinDate: toDateOnly(member.joinDate),
             photoUrl: member.photoUrl ?? "",
             notes: member.notes ?? "",
+            plannedHoursPerDay: member.plannedHoursPerDay ?? Number.NaN,
             // Hidden in edit mode, but the schema still requires non-empty values.
             // They are never sent to `updateMember`, so a placeholder is safe.
             planId: member.membership?.planId ?? planChoices[0]?.id ?? member.id,
@@ -195,6 +201,16 @@ export function MemberFormDialog({ open, onOpenChange, member, plans, onSave, })
               <Label htmlFor="member-join">Join date</Label>
               <Input id="member-join" type="date" {...register("joinDate")}/>
               {errors.joinDate ? (<p className="text-xs text-destructive">{errors.joinDate.message}</p>) : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="member-planned-hours">Planned hours per day</Label>
+              <Input id="member-planned-hours" type="number" min={0.5} max={24} step="0.5" placeholder="e.g. 4"
+                {...register("plannedHoursPerDay", { valueAsNumber: true })}/>
+              <p className="text-[11px] text-muted-foreground">
+                Optional — the daily time commitment agreed at joining. When a member crosses it, overtime reminders appear on View Attendance.
+              </p>
+              {errors.plannedHoursPerDay ? (<p className="text-xs text-destructive">{errors.plannedHoursPerDay.message}</p>) : null}
             </div>
 
             <div className="space-y-2">

@@ -339,6 +339,7 @@ export class DemoDataService {
             qrRotatedAt: null,
             status: "active",
             notes: input.notes ?? null,
+            plannedHoursPerDay: input.plannedHoursPerDay ?? null,
             createdBy: this.db.profile.id,
             createdAt: iso(this.now()),
             updatedAt: iso(this.now()),
@@ -385,6 +386,9 @@ export class DemoDataService {
             emergencyContactPhone: input.emergencyContactPhone !== undefined ? input.emergencyContactPhone || null : member.emergencyContactPhone,
             joinDate: input.joinDate ?? member.joinDate,
             notes: input.notes !== undefined ? input.notes : member.notes,
+            plannedHoursPerDay: input.plannedHoursPerDay !== undefined
+                ? input.plannedHoursPerDay
+                : member.plannedHoursPerDay,
             status: input.status ?? member.status,
             updatedAt: iso(this.now()),
         };
@@ -982,11 +986,84 @@ export class DemoDataService {
             dateOfBirth: member.dateOfBirth ?? null,
             joinDate: member.joinDate,
             status: member.status,
+            plannedHoursPerDay: member.plannedHoursPerDay ?? null,
             qrStatus: member.qrStatus,
             membership,
             effectiveStatus: toMyEffectiveStatus(row.effectiveStatus),
             daysRemaining: row.daysRemaining,
         };
+    }
+    async getMyReminders() {
+        const me = this.demoMe();
+        return this.db.notifications
+            .filter((n) => n.memberId === me.id && !n.isRead)
+            .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+            .slice(0, 10)
+            .map((n) => ({ id: n.id, title: n.title, body: n.body, severity: n.severity, createdAt: n.createdAt }));
+    }
+    async readMyReminders() {
+        const me = this.demoMe();
+        this.db.notifications.forEach((n) => {
+            if (n.memberId === me.id)
+                n.isRead = true;
+        });
+        this.persist();
+        return { ok: true };
+    }
+    async getAttendanceOvertime(from, to) {
+        const fromMs = new Date(from).getTime();
+        const toMs = new Date(to).getTime();
+        const nowMs = Math.min(this.now().getTime(), toMs);
+        const byMember = new Map();
+        const openIds = new Set();
+        for (const row of this.db.attendance) {
+            const t = new Date(row.checkIn).getTime();
+            if (t < fromMs || t > toMs)
+                continue;
+            const end = row.checkOut ? new Date(row.checkOut).getTime() : nowMs;
+            const ms = Math.min(Math.max(0, end - t), 43_200_000);
+            byMember.set(row.memberId, (byMember.get(row.memberId) ?? 0) + ms);
+            if (!row.checkOut)
+                openIds.add(row.memberId);
+        }
+        return this.db.members
+            .filter((m) => (m.plannedHoursPerDay ?? 0) > 0 && byMember.has(m.id))
+            .map((m) => ({
+                memberId: m.id,
+                memberName: m.fullName,
+                memberCode: m.memberCode,
+                memberPhoto: m.photoUrl ?? null,
+                plannedHours: m.plannedHoursPerDay,
+                hours: Math.round((byMember.get(m.id) / 3_600_000) * 10) / 10,
+                stillInside: openIds.has(m.id),
+            }))
+            .filter((row) => row.hours > row.plannedHours)
+            .sort((a, b) => b.hours - a.hours);
+    }
+    async remindCheckout(memberId) {
+        const member = this.db.members.find((m) => m.id === memberId);
+        if (!member)
+            throw new DataError("not_found", "Member not found");
+        if (!member.plannedHoursPerDay)
+            throw new DataError("bad_request", "This member has no planned hours set");
+        const today = ymdInTz(this.now(), this.tz);
+        const dedupeKey = `checkout_reminder:${member.id}:${today}`;
+        const existing = this.db.notifications.find((n) => n.dedupeKey === dedupeKey);
+        if (!existing) {
+            this.db.notifications.unshift({
+                id: uid("demo-notif"),
+                memberId: member.id,
+                type: "general",
+                title: "Your gym time is over — please check out",
+                body: `Front desk reminder: your planned time for today (${member.plannedHoursPerDay}h) has ended. Please check out.`,
+                severity: "warning",
+                isRead: false,
+                dedupeKey,
+                createdAt: iso(this.now()),
+            });
+            this.persist();
+        }
+        return { ok: true, alreadySent: Boolean(existing) };
     }
     async getMyQr() {
         const member = this.demoMe();

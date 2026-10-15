@@ -48,6 +48,14 @@ export const memberFormSchema = z
         .optional(),
     photoUrl: z.string().trim().max(500).optional(),
     notes: z.string().trim().max(2000).optional(),
+    // Empty numeric input arrives as NaN → treated as "not set" (null).
+    plannedHoursPerDay: z
+        .union([
+        z.number().min(0.5, "Enter at least 0.5 hours").max(24, "Cannot exceed 24 hours"),
+        z.literal(NaN),
+    ])
+        .optional()
+        .transform((v) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null)),
 })
     .refine((data) => !data.emergencyContactPhone || data.emergencyContactPhone.length > 0, {
     message: "Enter a valid emergency contact phone or leave it empty",

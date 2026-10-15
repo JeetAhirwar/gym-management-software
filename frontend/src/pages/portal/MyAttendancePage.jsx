@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { CalendarCheckIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -6,16 +7,37 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/shared/States";
 import { useData } from "@/auth/AuthProvider";
 import { useAsync } from "@/hooks";
+import { cn } from "@/lib/utils";
 import { formatDateTime, titleCase } from "@/lib/format";
 import { computeVisitStats } from "./paper";
 import { Settle, SectionHeading } from "./PaperBits";
 import { StatsTickets } from "./StatsTickets";
 import { VisitCalendar } from "./VisitCalendar";
+/** A visit counts at most 12h so a forgotten check-out cannot skew totals. */
+const MAX_VISIT_MS = 12 * 3_600_000;
+/** Capped hours spent for one visit (open visits run live). */
+function visitSpanMs(record, nowMs) {
+    const start = new Date(record.checkIn).getTime();
+    const end = record.checkOut ? new Date(record.checkOut).getTime() : nowMs;
+    return Math.min(Math.max(0, end - start), MAX_VISIT_MS);
+}
+function hoursLabel(ms) {
+    const hours = ms / 3_600_000;
+    return hours >= 1 ? `${Math.round(hours * 10) / 10} h` : `${Math.round(ms / 60_000)} min`;
+}
 export function MyAttendancePage() {
     const data = useData();
     const attendance = useAsync(() => data.listMyAttendance(50), [data]);
     const rows = attendance.data ?? [];
     const stats = computeVisitStats(rows);
+    const hasOpen = rows.some((r) => r.status === "checked_in" && !r.checkOut);
+    const [tick, setTick] = useState(() => Date.now());
+    useEffect(() => {
+        if (!hasOpen)
+            return;
+        const id = setInterval(() => setTick(Date.now()), 1000);
+        return () => clearInterval(id);
+    }, [hasOpen]);
     return (<div className="space-y-8">
       <PageHeader title="My attendance" description="Your visits, check-ins and streaks — recorded by the front desk."/>
 
@@ -49,15 +71,23 @@ export function MyAttendancePage() {
                   <TableRow>
                     <TableHead>Check-in</TableHead>
                     <TableHead>Check-out</TableHead>
+                    <TableHead>Hours</TableHead>
                     <TableHead className="hidden sm:table-cell">Method</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rows.map((record) => (<TableRow key={record.id}>
+                  {rows.map((record) => {
+            const open = record.status === "checked_in" && !record.checkOut;
+            const ms = visitSpanMs(record, tick);
+            return (<TableRow key={record.id}>
                       <TableCell className="text-sm">{formatDateTime(record.checkIn)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {record.checkOut ? formatDateTime(record.checkOut) : "—"}
+                      </TableCell>
+                      <TableCell className={cn("text-sm font-medium tabular-nums", open && "text-primary")}>
+                        {hoursLabel(ms)}
+                        {open ? <span className="ml-1 text-[10px] font-normal uppercase tracking-wide text-primary">live</span> : null}
                       </TableCell>
                       <TableCell className="hidden text-sm sm:table-cell">
                         {titleCase(record.method)}
@@ -69,7 +99,8 @@ export function MyAttendancePage() {
                           {record.status === "checked_out" ? "Checked out" : "In gym"}
                         </Badge>
                       </TableCell>
-                    </TableRow>))}
+                    </TableRow>);
+        })}
                 </TableBody>
               </Table>)}
           </Card>

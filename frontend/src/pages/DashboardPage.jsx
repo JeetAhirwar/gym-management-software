@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis, } from "recharts";
 import { motion } from "motion/react";
-import { ActivityIcon, ArrowDownRightIcon, ArrowUpRightIcon, BanknoteIcon, CalendarClockIcon, CameraIcon, IndianRupeeIcon, PlusIcon, UserPlusIcon, UserRoundCheckIcon, WalletIcon, } from "lucide-react";
+import { ActivityIcon, BanknoteIcon, CalendarClockIcon, CameraIcon, IndianRupeeIcon, PlusIcon, UserPlusIcon, UserRoundCheckIcon, WalletIcon, } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { EmptyState, ErrorState, Skeleton, Stagger } from "@/components/shared/States";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -178,33 +178,46 @@ export function DashboardPage() {
         </Stagger>
       </div>
 
-      {/* Revenue row */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stagger delayIndex={4}>
-          <StatCard label="Revenue this month" value={stats.data?.monthlyRevenue ?? 0} format={(n) => formatINR(n)} icon={<IndianRupeeIcon className="size-4"/>} hint={revenueDelta !== null ? (<span className={cn("inline-flex items-center gap-1", revenueDelta >= 0 ? "text-primary" : "text-destructive")}>
-                  {revenueDelta >= 0 ? <ArrowUpRightIcon className="size-3"/> : <ArrowDownRightIcon className="size-3"/>}
-                  {Math.abs(revenueDelta)}% vs last month
-                </span>) : ("Collected payments this month")} tone="success"/>
-        </Stagger>
-        <Stagger delayIndex={5}>
-          <StatCard label="Total payments" value={stats.data?.totalPayments ?? 0} format={(n) => formatINR(n)} icon={<BanknoteIcon className="size-4"/>} hint="All-time collected" tone="success"/>
-        </Stagger>
-        <Stagger delayIndex={6}>
-          <StatCard label="Pending payments" value={stats.data?.pendingPayments ?? 0} icon={<WalletIcon className="size-4"/>} hint={`${formatINR(stats.data?.pendingAmount ?? 0)} outstanding`} tone={stats.data && stats.data.pendingPayments > 0 ? "danger" : "default"}/>
-        </Stagger>
-        <Stagger delayIndex={7}>
-          <Card className="graphite-surface border-border/70">
-            <CardContent className="flex h-full flex-wrap items-center gap-3 p-5">
-              <p className="mr-auto text-xs font-medium tracking-wide text-muted-foreground uppercase">Quick actions</p>
-              {quickActions.map((action) => (<Button key={action.to} variant="secondary" size="sm" asChild>
-                  <Link to={action.to}>
-                    <action.icon className="size-4"/> {action.label}
-                  </Link>
-                </Button>))}
-            </CardContent>
-          </Card>
-        </Stagger>
-      </div>
+{/* This month: Total | Collected | Remaining */}
+<div className="grid gap-4 sm:grid-cols-3">
+  <Stagger delayIndex={4}>
+    <StatCard
+      label="Total this month"
+      value={(stats.data?.monthlyRevenue ?? 0) + (stats.data?.pendingAmount ?? 0)}
+      format={(n) => formatINR(n)}
+      icon={<IndianRupeeIcon className="size-4" />}
+      hint="Collected + remaining"
+    />
+  </Stagger>
+  <Stagger delayIndex={5}>
+    <StatCard
+      label="Collected"
+      value={stats.data?.monthlyRevenue ?? 0}
+      format={(n) => formatINR(n)}
+      icon={<BanknoteIcon className="size-4" />}
+      hint={
+        revenueDelta !== null
+          ? `${revenueDelta >= 0 ? "+" : ""}${revenueDelta}% vs last month`
+          : "Payments received this month"
+      }
+      tone="success"
+    />
+  </Stagger>
+  <Stagger delayIndex={6}>
+    <StatCard
+      label="Remaining"
+      value={stats.data?.pendingAmount ?? 0}
+      format={(n) => formatINR(n)}
+      icon={<WalletIcon className="size-4" />}
+      hint={
+        stats.data?.pendingPayments
+          ? `${stats.data.pendingPayments} member${stats.data.pendingPayments === 1 ? "" : "s"} with dues`
+          : "No outstanding dues"
+      }
+      tone={stats.data && (stats.data.pendingAmount ?? 0) > 0 ? "danger" : "default"}
+    />
+  </Stagger>
+</div>
 
       {/* Charts */}
       <div className="grid gap-4 lg:grid-cols-3">

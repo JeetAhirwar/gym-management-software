@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { CalendarCheckIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, DownloadIcon, GaugeIcon, HistoryIcon, Loader2Icon, UsersIcon, } from "lucide-react";
+import { CalendarCheckIcon, ChevronLeftIcon, ChevronRightIcon, ClockIcon, DownloadIcon, GaugeIcon, HistoryIcon, Loader2Icon, TriangleAlertIcon, UsersIcon, } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { EmptyState, ErrorState, Skeleton, Stagger, TableSkeleton } from "@/components/shared/States";
 import { SmartImage } from "@/components/shared/SmartImage";
@@ -99,6 +99,8 @@ export function ViewAttendancePage() {
     const [status, setStatus] = useState("all");
     const [page, setPage] = useState(1);
     const [exporting, setExporting] = useState(false);
+    const [reminded, setReminded] = useState(() => new Set());
+    const [reminding, setReminding] = useState(null);
     // Live ticker for open sessions — only runs in the day view.
     const [nowTick, setNowTick] = useState(() => Date.now());
     useEffect(() => {
@@ -129,6 +131,8 @@ export function ViewAttendancePage() {
     }), [range, status, page]);
     const list = useAsync(() => data.listAttendance(query), [data, query]);
     const summary = useAsync(() => data.getAttendanceSummary(range), [data, range]);
+    // Members who passed their planned daily hours — the "time up" strip.
+    const overtime = useAsync(() => data.getAttendanceOvertime(query.from, query.to), [data, query.from, query.to]);
     // A shrunken result set can leave us stranded past the last page — snap back.
     useEffect(() => {
         if (!list.data)
@@ -211,6 +215,24 @@ export function ViewAttendancePage() {
         })();
     };
     const timeOf = (value) => (mode === "day" ? formatTime(value) : formatDateTime(value));
+    const handleRemind = (row) => {
+        if (reminding)
+            return;
+        setReminding(row.memberId);
+        void (async () => {
+            try {
+                await data.remindCheckout(row.memberId);
+                setReminded((prev) => new Set(prev).add(row.memberId));
+                toast.success(`Reminder sent to ${row.memberName} — your time is up, please check out.`);
+            }
+            catch (error) {
+                toast.error(error instanceof Error ? error.message : "Unable to send the reminder.");
+            }
+            finally {
+                setReminding(null);
+            }
+        })();
+    };
     return (<div className="space-y-6">
       <PageHeader title="View attendance" description="Day, month or year-wise register with time spent per visit (hours capped at 12h)." breadcrumbs={[{ label: "Attendance", to: "/attendance" }, { label: "View" }]} actions={<Button variant="outline" asChild>
             <Link to="/attendance/history">
@@ -317,6 +339,34 @@ export function ViewAttendancePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Overtime — members over their planned daily hours */}
+      {overtime.data && overtime.data.length > 0 ? (<Card className="gap-0 border-warning/30 bg-warning/5 py-4 sm:py-5">
+          <CardContent className="px-4 sm:px-5">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <TriangleAlertIcon className="size-4 shrink-0 text-warning"/>
+              <p className="text-sm font-semibold">Planned time exceeded</p>
+              <p className="text-xs text-muted-foreground">— these members are over their daily hours; send a checkout reminder.</p>
+            </div>
+            <ul className="space-y-2">
+              {overtime.data.map((row) => (<li key={row.memberId} className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-card px-3 py-2">
+                  <SmartImage src={row.memberPhoto} name={row.memberName} className="size-8 shrink-0"/>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{row.memberName}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {row.memberCode} · planned {row.plannedHours}h/day{row.stillInside ? " · still inside" : ""}
+                    </p>
+                  </div>
+                  <span className="font-mono text-sm font-semibold tabular-nums text-warning">
+                    {row.hours}h / {row.plannedHours}h
+                  </span>
+                  <Button size="sm" variant="outline" disabled={reminded.has(row.memberId) || reminding === row.memberId} onClick={() => handleRemind(row)}>
+                    {reminded.has(row.memberId) ? "Reminder sent" : "Send reminder"}
+                  </Button>
+                </li>))}
+            </ul>
+          </CardContent>
+        </Card>) : null}
 
       {/* Register table */}
       <Card className="graphite-surface gap-0 border-border/70">

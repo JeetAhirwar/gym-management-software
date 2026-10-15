@@ -83,6 +83,7 @@ export function toMember(doc) {
     qrRotatedAt: iso(doc.qrRotatedAt),
     status: doc.status,
     notes: doc.notes ?? null,
+    plannedHoursPerDay: doc.plannedHoursPerDay ?? null,
     createdBy: id(doc.createdBy),
     createdAt: iso(doc.createdAt),
     updatedAt: iso(doc.updatedAt),

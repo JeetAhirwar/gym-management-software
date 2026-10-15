@@ -60,6 +60,8 @@ const createMemberSchema = z.object({
   emergencyContactPhone: z.string().nullish(),
   joinDate: z.string().min(4, "Join date is required"),
   notes: z.string().nullish(),
+  /** Daily hours commitment agreed at joining (e.g. 4) — drives overtime reminders. */
+  plannedHoursPerDay: z.number().min(0.5, "Enter at least 0.5 hours").max(24, "Cannot exceed 24 hours").nullish(),
   planId: z.string().min(1, "Plan is required"),
   membershipStart: z.string().min(4, "Membership start is required"),
   initialPayment: initialPaymentSchema.nullish(),
@@ -97,7 +99,7 @@ async function findMemberOr404(gymId, id) {
 
 const MEMBER_AUDIT_KEYS = [
   "fullName", "email", "phone", "photoUrl", "dateOfBirth", "gender", "address",
-  "emergencyContactName", "emergencyContactPhone", "joinDate", "notes", "status",
+  "emergencyContactName", "emergencyContactPhone", "joinDate", "notes", "status", "plannedHoursPerDay",
 ];
 
 /* ------------------------------------------------------------------ */
@@ -232,6 +234,7 @@ router.post(
               qrStatus: "active",
               status: "active",
               notes: input.notes ?? null,
+              plannedHoursPerDay: input.plannedHoursPerDay ?? null,
               createdBy: req.user.id,
             },
           ],
