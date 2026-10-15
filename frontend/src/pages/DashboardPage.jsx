@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis, } from "recharts";
 import { motion } from "motion/react";
-import { ActivityIcon, ArrowDownRightIcon, ArrowUpRightIcon, CalendarClockIcon, CameraIcon, IndianRupeeIcon, PlusIcon, UserPlusIcon, UserRoundCheckIcon, WalletIcon, } from "lucide-react";
+import { ActivityIcon, ArrowDownRightIcon, ArrowUpRightIcon, BanknoteIcon, CalendarClockIcon, CameraIcon, IndianRupeeIcon, PlusIcon, UserPlusIcon, UserRoundCheckIcon, WalletIcon, } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { EmptyState, ErrorState, Skeleton, Stagger } from "@/components/shared/States";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -187,10 +187,13 @@ export function DashboardPage() {
                 </span>) : ("Collected payments this month")} tone="success"/>
         </Stagger>
         <Stagger delayIndex={5}>
-          <StatCard label="Pending payments" value={stats.data?.pendingPayments ?? 0} icon={<WalletIcon className="size-4"/>} hint={`${formatINR(stats.data?.pendingAmount ?? 0)} outstanding`} tone={stats.data && stats.data.pendingPayments > 0 ? "danger" : "default"}/>
+          <StatCard label="Total payments" value={stats.data?.totalPayments ?? 0} format={(n) => formatINR(n)} icon={<BanknoteIcon className="size-4"/>} hint="All-time collected" tone="success"/>
         </Stagger>
         <Stagger delayIndex={6}>
-          <Card className="graphite-surface border-border/70 sm:col-span-2 xl:col-span-2">
+          <StatCard label="Pending payments" value={stats.data?.pendingPayments ?? 0} icon={<WalletIcon className="size-4"/>} hint={`${formatINR(stats.data?.pendingAmount ?? 0)} outstanding`} tone={stats.data && stats.data.pendingPayments > 0 ? "danger" : "default"}/>
+        </Stagger>
+        <Stagger delayIndex={7}>
+          <Card className="graphite-surface border-border/70">
             <CardContent className="flex h-full flex-wrap items-center gap-3 p-5">
               <p className="mr-auto text-xs font-medium tracking-wide text-muted-foreground uppercase">Quick actions</p>
               {quickActions.map((action) => (<Button key={action.to} variant="secondary" size="sm" asChild>

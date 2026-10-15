@@ -178,6 +178,9 @@ export class DemoDataService {
             .reduce((sum, p) => sum + p.amount, 0);
         const dues = await this.getDues();
         const pendingPayments = dues.filter((d) => d.balance > 0).length;
+        const totalPayments = this.db.payments
+            .filter((p) => p.status === "paid" || p.status === "partial")
+            .reduce((sum, p) => sum + p.amount, 0);
         return {
             activeMembers,
             newThisMonth,
@@ -191,6 +194,7 @@ export class DemoDataService {
             previousMonthRevenue,
             pendingPayments,
             pendingAmount: dues.reduce((sum, d) => sum + d.balance, 0),
+            totalPayments,
             totalMembers: this.db.members.length,
         };
     }

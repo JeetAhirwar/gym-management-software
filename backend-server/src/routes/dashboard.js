@@ -87,7 +87,7 @@ router.get(
       if (member.joinDate && monthKeyInTz(new Date(member.joinDate), tz) === monthKey) newThisMonth += 1;
     }
 
-    const [todayAttendance, insideRows, revenueRows, dues] = await Promise.all([
+    const [todayAttendance, insideRows, revenueRows, dues, totalPaidRows] = await Promise.all([
       AttendanceRecord.countDocuments({
         gymId,
         checkIn: { $gte: todayStart, $lt: tomorrowStart },
@@ -113,6 +113,10 @@ router.get(
         },
       ]),
       getDuesRows(gymId),
+      PaymentRecord.aggregate([
+        { $match: { gymId, status: { $in: ["paid", "partial"] } } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ]),
     ]);
 
     const revenueByKey = new Map(revenueRows.map((r) => [r._id, r.total]));
@@ -129,6 +133,7 @@ router.get(
       previousMonthRevenue: round2(revenueByKey.get(prevMonthKey) ?? 0),
       pendingPayments: dues.length,
       pendingAmount: round2(dues.reduce((sum, d) => sum + d.balance, 0)),
+      totalPayments: round2(totalPaidRows[0]?.total ?? 0),
       totalMembers: await Member.countDocuments({ gymId }),
     });
   }),
