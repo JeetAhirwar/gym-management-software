@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { BarChart3Icon, CalendarDaysIcon, CreditCardIcon, DumbbellIcon, LayoutDashboardIcon, MenuIcon, QrCodeIcon, SettingsIcon, TagsIcon, UsersIcon, UserSquare2Icon, XIcon, } from "lucide-react";
+import { BarChart3Icon, CalendarCheckIcon, CalendarDaysIcon, CreditCardIcon, DumbbellIcon, LayoutDashboardIcon, MenuIcon, QrCodeIcon, SettingsIcon, TagsIcon, UsersIcon, UserSquare2Icon, XIcon, } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/AuthProvider";
 import { can } from "@/lib/permissions";
@@ -8,6 +8,7 @@ export const NAV_ITEMS = [
     { to: "/", label: "Dashboard", icon: LayoutDashboardIcon, end: true },
     { to: "/members", label: "Members", icon: UsersIcon, capability: "members.view" },
     { to: "/attendance", label: "QR Attendance", icon: QrCodeIcon, capability: "attendance.view" },
+    { to: "/attendance/view", label: "View Attendance", icon: CalendarCheckIcon, capability: "attendance.view", end: true },
     { to: "/plans", label: "Membership Plans", icon: TagsIcon, capability: "plans.view" },
     { to: "/payments", label: "Payments & Fees", icon: CreditCardIcon, capability: "payments.view" },
     { to: "/staff", label: "Trainers & Staff", icon: UserSquare2Icon, capability: "staff.view" },

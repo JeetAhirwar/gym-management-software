@@ -676,8 +676,8 @@ export class DemoDataService {
     }
     async listAttendance(query = {}) {
         let rows = [...this.db.attendance];
-        const from = query.from ? parseDateOnly(query.from).getTime() : -Infinity;
-        const to = query.to ? parseDateOnly(query.to).getTime() + 86_399_999 : Infinity;
+        const from = query.from ? new Date(query.from).getTime() : -Infinity;
+        const to = query.to ? new Date(query.to).getTime() : Infinity;
         rows = rows.filter((r) => {
             const t = new Date(r.checkIn).getTime();
             return t >= from && t <= to;
@@ -689,7 +689,11 @@ export class DemoDataService {
         const page = Math.max(1, query.page ?? 1);
         const pageSize = Math.min(200, Math.max(5, query.pageSize ?? 20));
         const start = (page - 1) * pageSize;
-        return { items: rows.slice(start, start + pageSize), total: rows.length, page, pageSize };
+        const items = rows.slice(start, start + pageSize).map((r) => ({
+            ...r,
+            planName: this.db.memberships.find((m) => m.id === r.membershipId)?.planName ?? null,
+        }));
+        return { items, total: rows.length, page, pageSize };
     }
     async listMemberAttendance(memberId, limit = 30) {
         return this.db.attendance.filter((a) => a.memberId === memberId).slice(0, limit);
@@ -730,12 +734,21 @@ export class DemoDataService {
                 busiest = hour;
             }
         }
+        // Time spent per visit, capped at 12h (mirrors the API summary).
+        const MAX_VISIT_MS = 43_200_000;
+        const nowMs = Math.min(this.now().getTime(), range.to.getTime());
+        let totalMs = 0;
+        for (const row of rows) {
+            const end = row.checkOut ? new Date(row.checkOut).getTime() : nowMs;
+            totalMs += Math.min(Math.max(0, end - new Date(row.checkIn).getTime()), MAX_VISIT_MS);
+        }
         return {
             totalVisits: rows.length,
             uniqueMembers: new Set(rows.map((r) => r.memberId)).size,
             averagePerDay: Math.round((rows.length / days) * 10) / 10,
             busiestHour: busiest,
             checkIns: rows.filter((r) => r.status === "checked_in").length,
+            totalHours: Math.round((totalMs / 3_600_000) * 10) / 10,
         };
     }
     async getPeakHours(range) {

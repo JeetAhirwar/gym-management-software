@@ -3,6 +3,8 @@ import { z } from "zod";
 import { Types } from "mongoose";
 import AttendanceRecord from "../models/AttendanceRecord.js";
 import Member from "../models/Member.js";
+import MemberMembership from "../models/MemberMembership.js";
+import MembershipPlan from "../models/MembershipPlan.js";
 import User from "../models/User.js";
 import { requireAuth, requireCap } from "../middleware/auth.js";
 import { asyncHandler, badRequest, notFound } from "../lib/errors.js";
@@ -162,21 +164,27 @@ router.get(
 
     const memberIds = [...new Set(rows.map((r) => String(r.memberId)))];
     const scannerIds = [...new Set(rows.map((r) => r.scannerId).filter(Boolean).map(String))];
-    const [members, scanners] = await Promise.all([
+    const membershipIds = [...new Set(rows.map((r) => String(r.membershipId)).filter((v) => v && v !== "null" && v !== "undefined"))];
+    const [members, scanners, memberships, plans] = await Promise.all([
       memberIds.length ? Member.find({ _id: { $in: memberIds } }).lean() : [],
       scannerIds.length ? User.find({ _id: { $in: scannerIds } }).select("fullName").lean() : [],
+      membershipIds.length ? MemberMembership.find({ _id: { $in: membershipIds } }).select("planId").lean() : [],
+      MembershipPlan.find({ gymId }).select("name").lean(),
     ]);
     const memberById = new Map(members.map((m) => [String(m._id), m]));
     const scannerById = new Map(scanners.map((s) => [String(s._id), s]));
+    const planById = new Map(plans.map((p) => [String(p._id), p.name]));
+    const planNameByMembership = new Map(memberships.map((m) => [String(m._id), planById.get(String(m.planId)) ?? null]));
 
     res.json({
-      items: rows.map((row) =>
-        toAttendance(
+      items: rows.map((row) => ({
+        ...toAttendance(
           row,
           memberById.get(String(row.memberId)),
           row.scannerId ? scannerById.get(String(row.scannerId)) : null,
         ),
-      ),
+        planName: planNameByMembership.get(String(row.membershipId)) ?? null,
+      })),
       total,
       page,
       pageSize,
@@ -260,7 +268,7 @@ router.get(
       gymId: ctx.gym._id,
       checkIn: { $gte: from, $lte: to },
     })
-      .select("memberId status checkIn")
+      .select("memberId status checkIn checkOut")
       .lean();
 
     const days = Math.max(1, Math.round((to.getTime() - from.getTime()) / 86_400_000));
@@ -276,12 +284,22 @@ router.get(
       }
     }
 
+    // Time spent per visit, capped at 12h so a forgotten check-out cannot skew totals.
+    const MAX_VISIT_MS = 43_200_000;
+    const nowMs = Math.min(ctx.now.getTime(), to.getTime());
+    let totalMs = 0;
+    for (const row of rows) {
+      const end = row.checkOut ? new Date(row.checkOut).getTime() : nowMs;
+      totalMs += Math.min(Math.max(0, end - new Date(row.checkIn).getTime()), MAX_VISIT_MS);
+    }
+
     res.json({
       totalVisits: rows.length,
       uniqueMembers: new Set(rows.map((r) => String(r.memberId))).size,
       averagePerDay: Math.round((rows.length / days) * 10) / 10,
       busiestHour,
       checkIns: rows.filter((r) => r.status === "checked_in").length,
+      totalHours: Math.round((totalMs / 3_600_000) * 10) / 10,
     });
   }),
 );

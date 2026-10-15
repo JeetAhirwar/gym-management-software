@@ -15,6 +15,7 @@ import { MembersPage } from "@/pages/members/MembersPage";
 import { MemberDetailPage } from "@/pages/members/MemberDetailPage";
 import { AttendancePage } from "@/pages/attendance/AttendancePage";
 import { AttendanceHistoryPage } from "@/pages/attendance/AttendanceHistoryPage";
+import { ViewAttendancePage } from "@/pages/attendance/ViewAttendancePage";
 import { MemberPortalLayout } from "@/pages/portal/MemberPortalLayout";
 import { MemberPortalPage } from "@/pages/portal/MemberPortalPage";
 import { MyAttendancePage } from "@/pages/portal/MyAttendancePage";
@@ -31,6 +32,7 @@ function StaffRoutes() {
         <Route path="/members/:memberId" element={<MemberDetailPage />}/>
         <Route path="/attendance" element={<AttendancePage />}/>
         <Route path="/attendance/history" element={<AttendanceHistoryPage />}/>
+        <Route path="/attendance/view" element={<ViewAttendancePage />}/>
         <Route path="/plans" element={<PlansPage />}/>
         <Route path="/payments" element={<PaymentsPage />}/>
         <Route path="/staff" element={<StaffPage />}/>
