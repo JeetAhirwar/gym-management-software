@@ -2,20 +2,23 @@
  * Centralised, typed access to public runtime configuration.
  * Values are baked in at build time by Vite (all VITE_* variables are PUBLIC).
  */
-const rawApiUrl = import.meta.env.VITE_API_URL;
-const rawDemo = import.meta.env.VITE_DEMO_MODE;
-const rawTimezone = import.meta.env.VITE_GYM_TIMEZONE;
-const rawGymName = import.meta.env.VITE_GYM_NAME;
+const rawApiUrl = import.meta.env.VITE_API_URL || 'https://gym-management-software-api.vercel.app/api';
+const rawDemo = import.meta.env.VITE_DEMO_MODE || 'false';
+const rawTimezone = import.meta.env.VITE_GYM_TIMEZONE || 'Asia/Kolkata';
+const rawGymName = import.meta.env.VITE_GYM_NAME || 'Pulse Fitness Studio';
 /** Accepts only absolute http(s) URLs; trailing slashes are trimmed. */
-function normalizeApiUrl(value) {
+function normalizeApiUrl(value)
+{
     const trimmed = value?.trim();
     if (!trimmed)
         return null;
     let parsed;
-    try {
+    try
+    {
         parsed = new URL(trimmed);
     }
-    catch {
+    catch
+    {
         return null;
     }
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:")
