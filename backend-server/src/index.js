@@ -18,6 +18,7 @@ import staffRoutes from "./routes/staff.js";
 import classRoutes from "./routes/classes.js";
 import notificationRoutes from "./routes/notifications.js";
 import auditRoutes from "./routes/audit.js";
+import uploadRoutes from "./routes/uploads.js";
 
 export function buildApp() {
   const app = express();
@@ -90,11 +91,12 @@ export function buildApp() {
   app.use("/api/auth", authRoutes);
   // Member portal: own profile / QR / attendance / payments / password.
   app.use("/api/me", meRoutes);
-  // After /api/me: members are staff-blocked. The one exception is reading the
-  // gym branding so the portal header can render (session building).
+  // After /api/me: members are staff-blocked. The exceptions are reading the
+  // gym branding (session building) and scanning the front-desk gym QR.
   app.use("/api", requireAuth, (req, _res, next) => {
     if (req.user?.role !== "member") return next();
     if (req.method === "GET" && req.path === "/gym") return next();
+    if (req.method === "POST" && req.path === "/attendance/gym-scan") return next();
     return next(forbidden("Member accounts can only access their own portal", "member_forbidden"));
   });
 
@@ -108,6 +110,7 @@ export function buildApp() {
   app.use("/api", classRoutes);
   app.use("/api", notificationRoutes);
   app.use("/api", auditRoutes);
+  app.use("/api", uploadRoutes);
 
   // 404 for unknown API routes.
   app.use("/api", (_req, res) => {
@@ -131,6 +134,9 @@ export function buildApp() {
     }
     if (err?.type === "entity.parse.failed") {
       return res.status(400).json({ message: "Malformed JSON body", code: "bad_json" });
+    }
+    if (err?.type === "entity.too.large") {
+      return res.status(413).json({ message: "That upload is too large — pick a smaller file.", code: "payload_too_large" });
     }
     // eslint-disable-next-line no-console
     console.error("Unhandled error:", err);

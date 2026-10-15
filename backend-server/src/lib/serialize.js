@@ -23,6 +23,7 @@ export function toGym(doc) {
     phone: doc.phone ?? null,
     email: doc.email ?? null,
     isActive: Boolean(doc.isActive),
+    timeSlots: (doc.timeSlots ?? []).map((slot) => ({ start: slot.start, end: slot.end })),
     createdAt: iso(doc.createdAt),
     updatedAt: iso(doc.updatedAt),
   };

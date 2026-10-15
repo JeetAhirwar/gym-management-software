@@ -401,6 +401,14 @@ export class ApiDataService {
             return base; // keep whatever the API sent — never fail decoration
         }
     }
+    /** Upload a compressed photo (data URL) to the image CDN → { url, name }. */
+    async uploadPhoto(dataUrl, fileName) {
+        const payload = await apiPost("/uploads/photo", { dataUrl, fileName: fileName ?? undefined });
+        if (!payload?.url) {
+            throw new ApiError(502, "upload_failed", "The server did not return an image URL.");
+        }
+        return { url: payload.url, name: payload.name ?? null };
+    }
     async getMyMemberProfile() {
         const payload = await apiGet("/me");
         const raw = payload?.member;
@@ -461,6 +469,26 @@ export class ApiDataService {
     }
     async readMyReminders() {
         return apiPost("/me/reminders/read");
+    }
+    async readMyReminder(id) {
+        return apiPost(`/me/reminders/${encodeURIComponent(id)}/read`);
+    }
+    /** Fresh gym doc (bypasses the session cache) — Manage Gym page. */
+    async getGymFresh() {
+        return apiGet("/gym");
+    }
+    async getGymQr() {
+        return apiGet("/gym/qr");
+    }
+    async rotateGymQr() {
+        return apiPost("/gym/qr/rotate");
+    }
+    async updateTimeSlots(timeSlots) {
+        return apiPatch("/gym", { timeSlots });
+    }
+    /** Member scans the single front-desk gym QR → toggles check-in/out. */
+    async gymScan(token) {
+        return apiPost("/attendance/gym-scan", { token });
     }
     /* -------------------------------- staff ---------------------------- */
     async listStaff(includeInactive = true) {

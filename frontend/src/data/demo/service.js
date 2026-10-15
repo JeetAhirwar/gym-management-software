@@ -98,7 +98,10 @@ export class DemoDataService {
     }
     /* ----------------------------- settings ---------------------------- */
     async getGym() {
-        return this.db.gym;
+        return { ...this.db.gym, timeSlots: this.db.gym.timeSlots ?? [] };
+    }
+    async getGymFresh() {
+        return this.getGym();
     }
     async getSettings() {
         return this.db.settings;
@@ -952,6 +955,10 @@ export class DemoDataService {
             throw new DataError("not_found", "No demo member is available.");
         return member;
     }
+    /** Demo stand-in for ImageKit: keep the compressed data URL itself. */
+    async uploadPhoto(dataUrl) {
+        return { url: dataUrl, name: null };
+    }
     async getMyMemberProfile() {
         const member = this.demoMe();
         const row = this.withMembership(member);
@@ -1010,6 +1017,15 @@ export class DemoDataService {
         this.persist();
         return { ok: true };
     }
+    async readMyReminder(id) {
+        const me = this.demoMe();
+        const row = this.db.notifications.find((n) => n.id === id && n.memberId === me.id);
+        if (row) {
+            row.isRead = true;
+            this.persist();
+        }
+        return { ok: true };
+    }
     async getAttendanceOvertime(from, to) {
         const fromMs = new Date(from).getTime();
         const toMs = new Date(to).getTime();
@@ -1066,8 +1082,79 @@ export class DemoDataService {
         return { ok: true, alreadySent: Boolean(existing) };
     }
     async getMyQr() {
-        const member = this.demoMe();
-        return { token: member.qrToken, status: member.qrStatus };
+        if (!this.db.gym.gymQrToken) {
+            this.db.gym.gymQrToken = generateQrToken();
+            this.persist();
+        }
+        return { token: this.db.gym.gymQrToken, status: "active" };
+    }
+    async rotateGymQr() {
+        this.db.gym.gymQrToken = generateQrToken();
+        this.persist();
+        return { token: this.db.gym.gymQrToken };
+    }
+    async updateTimeSlots(timeSlots) {
+        this.db.gym.timeSlots = [...timeSlots].sort((a, b) => (a.start < b.start ? -1 : 1));
+        this.persist();
+        return this.getGym();
+    }
+    async gymScan(token) {
+        const me = this.demoMe();
+        if (!this.db.gym.gymQrToken || token !== this.db.gym.gymQrToken) {
+            throw new DataError("invalid_gym_qr", "That is not this gym's QR code. Please scan the QR at the front desk.");
+        }
+        const now = this.now();
+        const open = this.db.attendance.find((a) => a.memberId === me.id && a.status === "checked_in" && !a.checkOut);
+        if (open) {
+            open.checkOut = iso(now);
+            open.status = "checked_out";
+            open.updatedAt = iso(now);
+            this.persist();
+            return { action: "check_out", message: "Checked out — see you next time!", attendance: open };
+        }
+        const membership = currentMembership(this.membershipsOf(me.id));
+        const today = ymdInTz(now, this.tz);
+        const eligible = Boolean(membership) && membership.status === "active" && membership.endDate >= today;
+        if (!eligible) {
+            const hadMembership = Boolean(membership);
+            this.db.notifications.unshift({
+                id: uid("demo-notif"),
+                gymId: this.db.gym.id,
+                userId: null,
+                memberId: null,
+                type: "membership_expired",
+                title: "Expired member tried to check in",
+                body: `${me.fullName} (${me.memberCode}) scanned the gym QR but their membership has expired — please follow up.`,
+                severity: "warning",
+                isRead: false,
+                dedupeKey: `expired_scan:${me.id}:${today}`,
+                createdAt: iso(now),
+            });
+            this.persist();
+            throw new DataError(hadMembership ? "expired" : "no_membership", hadMembership ? "This membership has expired." : "This member has no current membership.");
+        }
+        const record = {
+            id: uid("demo-att"),
+            gymId: this.db.gym.id,
+            memberId: me.id,
+            membershipId: membership?.id ?? null,
+            checkIn: iso(now),
+            checkOut: null,
+            status: "checked_in",
+            method: "qr",
+            scannerId: me.id,
+            notes: "Scanned the front-desk gym QR from the member portal",
+            meta: { demo: true },
+            createdAt: iso(now),
+            updatedAt: iso(now),
+            memberName: me.fullName,
+            memberCode: me.memberCode,
+            memberPhoto: me.photoUrl,
+            scannerName: me.fullName,
+        };
+        this.db.attendance.unshift(record);
+        this.persist();
+        return { action: "check_in", message: "Checked in — your timer has started!", attendance: record, warning: null };
     }
     async listMyAttendance(limit = 30) {
         return this.listMemberAttendance(this.demoMe().id, limit);

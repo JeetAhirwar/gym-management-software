@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { BellIcon, LogOutIcon, MenuIcon, SearchIcon, SettingsIcon, ShieldAlertIcon, UserIcon, UserRoundIcon, } from "lucide-react";
+import { LogOutIcon, MenuIcon, SearchIcon, SettingsIcon, ShieldAlertIcon, UserIcon, UserRoundIcon, } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/auth/AuthProvider";
+import { NotificationBellPanel } from "@/components/shared/NotificationBellPanel";
 import { SmartImage } from "@/components/shared/SmartImage";
 import { ROLE_LABELS } from "@/lib/permissions";
 import { appVersion } from "@/config/env";
@@ -17,17 +18,22 @@ export function Topbar({ onOpenMenu }) {
         if (!data)
             return;
         let cancelled = false;
-        void data
+        const refresh = () => void data
             .getUnreadNotificationCount()
             .then((count) => {
             if (!cancelled)
                 setUnread(count);
         })
             .catch(() => undefined);
+        refresh();
+        // Keep the bell badge fresh without a page reload.
+        const timer = window.setInterval(refresh, 60_000);
         return () => {
             cancelled = true;
+            window.clearInterval(timer);
         };
     }, [data]);
+    const fetchNotifications = useCallback(async () => (await data?.listNotifications({ limit: 12 })) ?? [], [data]);
     const profile = session?.profile;
     const demo = useMemo(() => Boolean(session?.demo), [session]);
     function submitSearch(event) {
@@ -53,14 +59,18 @@ export function Topbar({ onOpenMenu }) {
               <ShieldAlertIcon className="size-3.5"/> DEMO MODE
             </span>) : null}
 
-          <Button variant="ghost" size="icon" asChild aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"} className="relative">
-            <Link to="/notifications">
-              <BellIcon className="size-4.5"/>
-              {unread > 0 ? (<span className="absolute top-1.5 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-                  {unread > 9 ? "9+" : unread}
-                </span>) : null}
-            </Link>
-          </Button>
+          {/* Bell → drops-down notification shade (no page jump). */}
+          <NotificationBellPanel unreadCount={unread} fetchItems={fetchNotifications} onOpenItem={async (item) => {
+            if (!item.isRead) {
+                await data.markNotificationRead(item.id);
+                setUnread((count) => Math.max(0, count - 1));
+            }
+            if (item.link)
+                navigate(item.link);
+        }} onMarkAllRead={async () => {
+            await data.markAllNotificationsRead();
+            setUnread(0);
+        }} onViewAll={() => navigate("/notifications")}/>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

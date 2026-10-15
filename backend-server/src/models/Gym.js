@@ -13,6 +13,10 @@ const GymSchema = new Schema(
     phone: { type: String, default: null },
     email: { type: String, default: null },
     isActive: { type: Boolean, default: true },
+    /** Front-desk slot schedule ("HH:mm" pairs) — editable on Manage Gym. */
+    timeSlots: { type: [{ _id: false, start: String, end: String }], default: () => [] },
+    /** Single shared gym QR members scan from the portal (rotatable). */
+    gymQrToken: { type: String, default: null },
   },
   { timestamps: true, versionKey: false, collection: "gyms" },
 );

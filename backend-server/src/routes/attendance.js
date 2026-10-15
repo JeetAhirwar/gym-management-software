@@ -8,7 +8,7 @@ import MemberMembership from "../models/MemberMembership.js";
 import MembershipPlan from "../models/MembershipPlan.js";
 import User from "../models/User.js";
 import { requireAuth, requireCap } from "../middleware/auth.js";
-import { asyncHandler, badRequest, notFound } from "../lib/errors.js";
+import { asyncHandler, badRequest, notFound, forbidden } from "../lib/errors.js";
 import { parseBody, intParam } from "../middleware/validate.js";
 import { toAttendance } from "../lib/serialize.js";
 import { parseQrPayload } from "../lib/qr.js";
@@ -22,6 +22,7 @@ import {
 } from "../lib/dates.js";
 import { loadGymContext } from "../services/context.js";
 import { runCheckIn } from "../services/checkin.js";
+import { notifyIfOverPlanned, notifyExpiredScan } from "../services/overtime.js";
 
 const router = Router();
 
@@ -93,6 +94,99 @@ router.post(
   }),
 );
 
+const gymScanSchema = z.object({ token: z.string().min(8, "That does not look like the gym's QR code") });
+
+/**
+ * POST /api/attendance/gym-scan { token } → { action, message, attendance }
+ *
+ * The member scans the ONE shared front-desk gym QR from their portal:
+ * first scan checks them in (timer starts), the next checks them out.
+ */
+router.post(
+  "/attendance/gym-scan",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const input = parseBody(gymScanSchema, req.body);
+    const user = await User.findById(req.user.id).lean();
+    if (!user?.memberId) {
+      throw forbidden("Only member accounts can scan the gym QR code");
+    }
+    const ctx = await loadGymContext(req.user.gymId);
+    const member = await Member.findOne({ _id: user.memberId, gymId: req.user.gymId }).lean();
+    if (!member) throw notFound("Member not found");
+
+    // Tolerate both the bare token and the "PGS1:<token>" payload — but it
+    // must be the GYM's token, never another member's personal QR.
+    const token = parseQrPayload(input.token) ?? String(input.token).trim();
+    if (!ctx.gym.gymQrToken || token !== ctx.gym.gymQrToken) {
+      throw badRequest(
+        "That is not this gym's QR code. Please scan the QR at the front desk.",
+        "invalid_gym_qr",
+      );
+    }
+
+    const now = new Date();
+    // Already inside → this same scan checks them out.
+    const open = await AttendanceRecord.findOne({
+      gymId: member.gymId,
+      memberId: member._id,
+      status: "checked_in",
+    })
+      .sort({ checkIn: -1 })
+      .lean();
+    if (open) {
+      // Close every open row defensively — stale opens would otherwise make
+      // the next scan check out again instead of checking in.
+      await AttendanceRecord.updateMany(
+        { gymId: member.gymId, memberId: member._id, status: "checked_in" },
+        { $set: { checkOut: now, status: "checked_out" } },
+      );
+      const updated = { ...open, checkOut: now, status: "checked_out" };
+      await writeAudit({
+        gymId: member.gymId,
+        actorId: req.user.id,
+        entity: "attendance_records",
+        entityId: String(updated._id),
+        action: "checkout",
+        oldValues: { status: "checked_in", checkOut: null },
+        newValues: { status: "checked_out" },
+      });
+      await notifyIfOverPlanned({ gymId: member.gymId, member, at: now });
+      return res.json({
+        action: "check_out",
+        message: "Checked out — see you next time!",
+        attendance: toAttendance(updated, member, null),
+      });
+    }
+
+    // Not inside → run the standard eligibility engine as a member self check-in.
+    const result = await runCheckIn({
+      gymId: member.gymId,
+      actorId: req.user.id,
+      lookup: { code: member.memberCode },
+      method: "qr",
+      notes: "Scanned the front-desk gym QR from the member portal",
+      ctx,
+    });
+    if (result.status !== "ok") {
+      if (result.reason === "expired" || result.reason === "no_membership") {
+        await notifyExpiredScan({ gymId: member.gymId, member, at: now });
+      }
+      throw badRequest(result.message, result.reason);
+    }
+    if (result.warning === "expired") {
+      // Accepted because the gym allows expired check-ins — still warn the staff.
+      await notifyExpiredScan({ gymId: member.gymId, member, at: now });
+    }
+    res.json({
+      action: "check_in",
+      message: "Checked in — your timer has started!",
+      attendance: result.attendance,
+      warning: result.warning ?? null,
+    });
+  }),
+);
+
 /** POST /api/attendance/:id/checkout → AttendanceRecord */
 router.post(
   "/attendance/:id/checkout",
@@ -129,45 +223,7 @@ router.post(
     });
 
     // Planned-hours overage: remind the member in-app, at most once per day.
-    if (member?.plannedHoursPerDay) {
-      const ctx = await loadGymContext(record.gymId);
-      const checkedOutAt = updated.checkOut ?? new Date();
-      const dayStart = startOfDayInTz(checkedOutAt, ctx.tz);
-      const dayRows = await AttendanceRecord.find({
-        gymId: record.gymId,
-        memberId: member._id,
-        checkIn: { $gte: dayStart, $lt: new Date(dayStart.getTime() + 86_400_000) },
-      })
-        .select("checkIn checkOut")
-        .lean();
-      let ms = 0;
-      for (const row of dayRows) {
-        const endMs = row.checkOut ? new Date(row.checkOut).getTime() : checkedOutAt.getTime();
-        ms += Math.min(Math.max(0, endMs - new Date(row.checkIn).getTime()), 43_200_000);
-      }
-      const hours = Math.round((ms / 3_600_000) * 10) / 10;
-      if (hours > member.plannedHoursPerDay) {
-        const today = ymdInTz(checkedOutAt, ctx.tz);
-        const dedupeKey = `time_exceeded:${member._id}:${today}`;
-        await AppNotification.updateOne(
-          { gymId: record.gymId, dedupeKey },
-          {
-            $set: {
-              gymId: record.gymId,
-              userId: null,
-              memberId: member._id,
-              type: "general",
-              title: "You exceeded your planned gym time",
-              body: `Today you spent ${hours}h at the gym — your planned time is ${member.plannedHoursPerDay}h.`,
-              severity: "warning",
-              isRead: false,
-              dedupeKey,
-            },
-          },
-          { upsert: true },
-        );
-      }
-    }
+    await notifyIfOverPlanned({ gymId: record.gymId, member, at: updated.checkOut ?? new Date() });
 
     res.json(toAttendance(updated, member, scanner));
   }),

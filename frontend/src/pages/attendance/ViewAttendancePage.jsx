@@ -234,7 +234,7 @@ export function ViewAttendancePage() {
         })();
     };
     return (<div className="space-y-6">
-      <PageHeader title="View attendance" description="Day, month or year-wise register with time spent per visit (hours capped at 12h)." breadcrumbs={[{ label: "Attendance", to: "/attendance" }, { label: "View" }]} actions={<Button variant="outline" asChild>
+      <PageHeader title="View attendance" description="Day, month or year-wise register with time spent per visit (hours capped at 12h)." breadcrumbs={[{ label: "Attendance" }, { label: "View" }]} actions={<Button variant="outline" asChild>
             <Link to="/attendance/history">
               <HistoryIcon className="size-4"/> View full attendance history
             </Link>

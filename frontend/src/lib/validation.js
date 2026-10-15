@@ -46,7 +46,8 @@ export const memberFormSchema = z
         .min(0, "Amount cannot be negative")
         .max(10_000_000, "Amount looks too large")
         .optional(),
-    photoUrl: z.string().trim().max(500).optional(),
+    // Roomy: demo uploads store a compressed photo data URL directly.
+    photoUrl: z.string().trim().max(800_000).optional(),
     notes: z.string().trim().max(2000).optional(),
     // Empty numeric input arrives as NaN → treated as "not set" (null).
     plannedHoursPerDay: z
@@ -102,7 +103,7 @@ export const staffFormSchema = z.object({
     specialization: z.string().trim().max(160).optional(),
     employmentStatus: z.enum(["active", "on_leave", "resigned"]),
     joiningDate: dateOnlySchema,
-    photoUrl: z.string().trim().max(500).optional(),
+    photoUrl: z.string().trim().max(800_000).optional(),
     notes: z.string().trim().max(1000).optional(),
 });
 export const classFormSchema = z

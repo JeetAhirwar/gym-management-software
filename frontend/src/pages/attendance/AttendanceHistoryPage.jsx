@@ -157,7 +157,7 @@ export function AttendanceHistoryPage() {
     const totalVisits = summary.data?.totalVisits ?? 0;
     const rangeHint = rangeValid ? `${formatDate(from)} – ${formatDate(to)}` : "Adjust the date range";
     return (<div className="space-y-6">
-      <PageHeader title="Attendance history" description="Every check-in and check-out, with filters, export and corrections." breadcrumbs={[{ label: "Attendance", to: "/attendance" }, { label: "History" }]}/>
+      <PageHeader title="Attendance history" description="Every check-in and check-out, with filters, export and corrections." breadcrumbs={[{ label: "Attendance", to: "/attendance/view" }, { label: "History" }]}/>
 
       {/* Summary strip */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

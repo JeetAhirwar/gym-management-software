@@ -96,7 +96,6 @@ export function DashboardPage() {
         : null;
     const quickActions = [
         { to: "/members?new=1", label: "Add member", icon: UserPlusIcon, capability: "members.create" },
-        { to: "/attendance", label: "Scan QR", icon: CameraIcon, capability: "qr.scan" },
         { to: "/payments?new=1", label: "Record payment", icon: WalletIcon, capability: "payments.record" },
         { to: "/plans?new=1", label: "Add plan", icon: PlusIcon, capability: "plans.manage" },
     ].filter((action) => can(role, action.capability));
@@ -137,15 +136,14 @@ export function DashboardPage() {
             <CardContent className="p-8">
               <div className="max-w-2xl">
                 <p className="font-serif text-sm tracking-wide text-paper-foreground/70">Getting started</p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight">Three steps to a live gym</h2>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight">Two steps to a live gym</h2>
                 <ol className="mt-5 space-y-4">
                   {[
                 ["Create membership plans", "Set prices and durations in ₹ — Monthly, Quarterly, Annual.", "/plans?new=1"],
                 ["Add your first member", "Their QR membership card is generated automatically.", "/members?new=1"],
-                ["Open the QR scanner", "Check members in from any phone with a camera.", "/attendance"],
-            ].map(([title, description, to]) => (<li key={title} className="flex gap-4">
+            ].map(([title, description, to], index) => (<li key={title} className="flex gap-4">
                       <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-paper-foreground text-xs font-bold text-paper">
-                        {["1", "2", "3"][["Create membership plans", "Add your first member", "Open the QR scanner"].indexOf(title)]}
+                        {index + 1}
                       </span>
                       <div>
                         <Link to={to} className="font-medium underline-offset-4 hover:underline">

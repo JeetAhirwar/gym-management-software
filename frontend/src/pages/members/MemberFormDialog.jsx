@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { PhotoPicker } from "@/components/shared/PhotoPicker";
 import { useSubmitGuard } from "@/hooks";
 import { toDateOnly } from "@/lib/datetime";
 import { durationLabel, PAYMENT_METHOD_LABELS } from "@/lib/format";
@@ -91,10 +92,12 @@ export function MemberFormDialog({ open, onOpenChange, member, plans, onSave, })
     const [submitting, run] = useSubmitGuard();
     const [recordPayment, setRecordPayment] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState("cash");
-    const { register, handleSubmit, control, reset, formState: { errors }, } = useForm({
+    const { register, handleSubmit, control, reset, watch, setValue, formState: { errors }, } = useForm({
         resolver: zodResolver(memberFormSchema),
         defaultValues: emptyValues(),
     });
+    const photoValue = watch("photoUrl") ?? "";
+    const memberName = watch("fullName") || "Member";
     const isEdit = member !== null;
     /** Plans offered in the picker — active first; fall back to everything. */
     const planChoices = useMemo(() => {
@@ -164,6 +167,13 @@ export function MemberFormDialog({ open, onOpenChange, member, plans, onSave, })
               {errors.fullName ? <p className="text-xs text-destructive">{errors.fullName.message}</p> : null}
             </div>
 
+            {/* Right at the top so the photo setter is obvious when the form opens. */}
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="member-photo">Profile photo</Label>
+              <PhotoPicker value={photoValue} name={memberName} onChange={(next) => setValue("photoUrl", next, { shouldDirty: true })}/>
+              {errors.photoUrl ? (<p className="text-xs text-destructive">{errors.photoUrl.message}</p>) : null}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="member-email">Email</Label>
               <Input id="member-email" type="email" placeholder="member@gym.com" {...register("email")}/>
@@ -211,12 +221,6 @@ export function MemberFormDialog({ open, onOpenChange, member, plans, onSave, })
                 Optional — the daily time commitment agreed at joining. When a member crosses it, overtime reminders appear on View Attendance.
               </p>
               {errors.plannedHoursPerDay ? (<p className="text-xs text-destructive">{errors.plannedHoursPerDay.message}</p>) : null}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="member-photo">Photo URL</Label>
-              <Input id="member-photo" placeholder="https://…" {...register("photoUrl")}/>
-              {errors.photoUrl ? (<p className="text-xs text-destructive">{errors.photoUrl.message}</p>) : null}
             </div>
 
             <div className="space-y-2">

@@ -9,17 +9,18 @@ import { ClassesPage } from "@/pages/classes/ClassesPage";
 import { ReportsPage } from "@/pages/reports/ReportsPage";
 import { NotificationsPage } from "@/pages/notifications/NotificationsPage";
 import { SettingsPage } from "@/pages/settings/SettingsPage";
+import { ManageGymPage } from "@/pages/manage/ManageGymPage";
 import { PlansPage } from "@/pages/plans/PlansPage";
 import { PaymentsPage } from "@/pages/payments/PaymentsPage";
 import { MembersPage } from "@/pages/members/MembersPage";
 import { MemberDetailPage } from "@/pages/members/MemberDetailPage";
-import { AttendancePage } from "@/pages/attendance/AttendancePage";
 import { AttendanceHistoryPage } from "@/pages/attendance/AttendanceHistoryPage";
 import { ViewAttendancePage } from "@/pages/attendance/ViewAttendancePage";
 import { MemberPortalLayout } from "@/pages/portal/MemberPortalLayout";
 import { MemberPortalPage } from "@/pages/portal/MemberPortalPage";
 import { MyAttendancePage } from "@/pages/portal/MyAttendancePage";
 import { MyPaymentsPage } from "@/pages/portal/MyPaymentsPage";
+import { ProfilePage } from "@/pages/portal/ProfilePage";
 import { ChangePasswordPage } from "@/pages/portal/ChangePasswordPage";
 /** Staff tree — identical to the pre-portal behaviour (AppShell + dashboard routes). */
 function StaffRoutes() {
@@ -30,7 +31,6 @@ function StaffRoutes() {
         <Route index element={<DashboardPage />}/>
         <Route path="/members" element={<MembersPage />}/>
         <Route path="/members/:memberId" element={<MemberDetailPage />}/>
-        <Route path="/attendance" element={<AttendancePage />}/>
         <Route path="/attendance/history" element={<AttendanceHistoryPage />}/>
         <Route path="/attendance/view" element={<ViewAttendancePage />}/>
         <Route path="/plans" element={<PlansPage />}/>
@@ -39,6 +39,7 @@ function StaffRoutes() {
         <Route path="/classes" element={<ClassesPage />}/>
         <Route path="/reports" element={<ReportsPage />}/>
         <Route path="/notifications" element={<NotificationsPage />}/>
+        <Route path="/manage-gym" element={<ManageGymPage />}/>
         <Route path="/settings" element={<SettingsPage />}/>
         {/* Members never see staff screens — keep them inside the portal. */}
         <Route path="/portal" element={<Navigate to="/" replace/>}/>
@@ -55,6 +56,7 @@ function MemberRoutes() {
         <Route index element={<MemberPortalPage />}/>
         <Route path="attendance" element={<MyAttendancePage />}/>
         <Route path="payments" element={<MyPaymentsPage />}/>
+        <Route path="profile" element={<ProfilePage />}/>
         <Route path="password" element={<ChangePasswordPage />}/>
       </Route>
       <Route path="/" element={<Navigate to="/portal" replace/>}/>

@@ -270,4 +270,20 @@ router.post(
   }),
 );
 
+/** POST /api/me/reminders/:id/read → { ok: true } (marks one reminder read) */
+router.post(
+  "/reminders/:id/read",
+  asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user.id).lean();
+    if (!user?.memberId) throw notFound("Reminder not found");
+    const row = await AppNotification.findOneAndUpdate(
+      { _id: req.params.id, gymId: req.user.gymId, memberId: user.memberId, isRead: false },
+      { $set: { isRead: true } },
+      { new: true },
+    ).lean();
+    if (!row) throw notFound("Reminder not found");
+    res.json({ ok: true });
+  }),
+);
+
 export default router;

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { PhotoPicker } from "@/components/shared/PhotoPicker";
 import { useSubmitGuard } from "@/hooks";
 import { toDateOnly } from "@/lib/datetime";
 import { ROLE_LABELS } from "@/lib/permissions";
@@ -54,10 +55,12 @@ function toInput(values) {
 }
 export function StaffFormDialog({ open, onOpenChange, staff, onSave, }) {
     const [submitting, run] = useSubmitGuard();
-    const { register, handleSubmit, control, reset, formState: { errors }, } = useForm({
+    const { register, handleSubmit, control, reset, watch, setValue, formState: { errors }, } = useForm({
         resolver: zodResolver(staffFormSchema),
         defaultValues: EMPTY_VALUES,
     });
+    const staffPhotoValue = watch("photoUrl") ?? "";
+    const staffName = watch("fullName") || "Staff";
     useEffect(() => {
         if (!open)
             return;
@@ -106,6 +109,13 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, }) {
               <Label htmlFor="staff-name">Full name</Label>
               <Input id="staff-name" placeholder="Aarav Sharma" {...register("fullName")}/>
               {errors.fullName ? <p className="text-xs text-destructive">{errors.fullName.message}</p> : null}
+            </div>
+
+            {/* Right at the top so the photo setter is obvious when the form opens. */}
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="staff-photo">Profile photo</Label>
+              <PhotoPicker inputId="staff-photo" value={staffPhotoValue} name={staffName} onChange={(next) => setValue("photoUrl", next, { shouldDirty: true })}/>
+              {errors.photoUrl ? <p className="text-xs text-destructive">{errors.photoUrl.message}</p> : null}
             </div>
 
             <div className="space-y-2">
@@ -160,12 +170,6 @@ export function StaffFormDialog({ open, onOpenChange, staff, onSave, }) {
               <Label htmlFor="staff-joining">Joining date</Label>
               <Input id="staff-joining" type="date" {...register("joiningDate")}/>
               {errors.joiningDate ? (<p className="text-xs text-destructive">{errors.joiningDate.message}</p>) : null}
-            </div>
-
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="staff-photo">Photo URL</Label>
-              <Input id="staff-photo" placeholder="https://…" {...register("photoUrl")}/>
-              {errors.photoUrl ? <p className="text-xs text-destructive">{errors.photoUrl.message}</p> : null}
             </div>
 
             <div className="space-y-2 sm:col-span-2">
