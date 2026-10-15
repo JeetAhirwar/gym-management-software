@@ -7,7 +7,7 @@ import { can } from "@/lib/permissions";
 export const NAV_ITEMS = [
     { to: "/", label: "Dashboard", icon: LayoutDashboardIcon, end: true },
     { to: "/members", label: "Members", icon: UsersIcon, capability: "members.view" },
-    { to: "/attendance", label: "QR Attendance", icon: QrCodeIcon, capability: "attendance.view" },
+    { to: "/attendance", label: "QR Attendance", icon: QrCodeIcon, capability: "attendance.view", activeWhen: ["/attendance", "/attendance/history"] },
     { to: "/attendance/view", label: "View Attendance", icon: CalendarCheckIcon, capability: "attendance.view", end: true },
     { to: "/plans", label: "Membership Plans", icon: TagsIcon, capability: "plans.view" },
     { to: "/payments", label: "Payments & Fees", icon: CreditCardIcon, capability: "payments.view" },
@@ -35,10 +35,14 @@ export function SidebarContent({ onNavigate }) {
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-4" aria-label="Primary">
         {items.map((item) => {
-            const active = item.end ? location.pathname === item.to : location.pathname.startsWith(item.to);
+            const active = item.activeWhen
+                ? item.activeWhen.includes(location.pathname)
+                : item.end
+                    ? location.pathname === item.to
+                    : location.pathname.startsWith(item.to);
             return (<NavLink key={item.to} to={item.to} end={item.end} onClick={onNavigate} className={cn("group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring", active
                     ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground")} aria-current={active ? "page" : undefined}>
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground")} aria-current={active ? "page" : "false"}>
               <item.icon className={cn("size-4 shrink-0", active ? "text-primary" : "text-muted-foreground")}/>
               <span className="truncate font-medium">{item.label}</span>
               {active ? <span className="ml-auto size-1.5 rounded-full bg-primary" aria-hidden/> : null}
