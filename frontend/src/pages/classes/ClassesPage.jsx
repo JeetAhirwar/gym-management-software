@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { addDays, addWeeks, endOfWeek, format, startOfWeek } from "date-fns";
-import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon, PencilIcon, PlusIcon, Settings2Icon, XCircleIcon, } from "lucide-react";
+import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon, ListIcon, PencilIcon, PlusIcon, Settings2Icon, XCircleIcon, } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { EmptyState, ErrorState, Skeleton, Stagger } from "@/components/shared/States";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { ClassFormDialog } from "./ClassFormDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ManageEnrollmentsDialog } from "./ManageEnrollmentsDialog";
+import { WeekTimetable } from "./WeekTimetable";
 const CLASS_STATUS = {
     scheduled: { label: "Scheduled", className: "border-info/30 bg-info/10 text-info" },
     completed: { label: "Completed", className: "border-primary/30 bg-primary/10 text-primary" },
@@ -82,6 +83,7 @@ export function ClassesPage() {
     const { session } = useAuth();
     const canManage = can(session?.profile.role, "classes.manage");
     const [weekOffset, setWeekOffset] = useState(0);
+    const [view, setView] = useState("week");
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState(null);
     const [managing, setManaging] = useState(null);
@@ -167,18 +169,32 @@ export function ClassesPage() {
         <p className="text-xs text-muted-foreground">
           {total} {total === 1 ? "class" : "classes"} this week
         </p>
+        <div className="flex items-center rounded-md border border-border/70 p-0.5" role="group" aria-label="Schedule view">
+          <Button size="icon-xs" variant={view === "week" ? "default" : "ghost"} aria-label="Timetable view" aria-pressed={view === "week"} onClick={() => setView("week")}>
+            <CalendarDaysIcon/>
+          </Button>
+          <Button size="icon-xs" variant={view === "agenda" ? "default" : "ghost"} aria-label="Agenda view" aria-pressed={view === "agenda"} onClick={() => setView("agenda")}>
+            <ListIcon/>
+          </Button>
+        </div>
       </div>
 
-      {classes.loading ? (<div className="flex flex-col gap-3 md:flex-row md:overflow-x-auto md:pb-2">
-          {Array.from({ length: 7 }).map((_, index) => (<div key={index} className="space-y-3 md:w-64 md:shrink-0">
-              <Skeleton className="h-12"/>
-              <Skeleton className="h-36"/>
-            </div>))}
-        </div>) : classes.error ? (<ErrorState title="Unable to load the schedule" message={classes.error} onRetry={classes.reload}/>) : total === 0 ? (<EmptyState icon={<CalendarDaysIcon className="size-5"/>} title="Nothing scheduled this week" description={canManage
+      {classes.loading ? (view === "week" ? (<div className="space-y-2">
+            <Skeleton className="h-12 w-full"/>
+            <Skeleton className="h-[480px] w-full"/>
+          </div>) : (<div className="flex flex-col gap-3 md:flex-row md:overflow-x-auto md:pb-2">
+            {Array.from({ length: 7 }).map((_, index) => (<div key={index} className="space-y-3 md:w-64 md:shrink-0">
+                <Skeleton className="h-12"/>
+                <Skeleton className="h-36"/>
+              </div>))}
+          </div>)) : classes.error ? (<ErrorState title="Unable to load the schedule" message={classes.error} onRetry={classes.reload}/>) : total === 0 ? (<EmptyState icon={<CalendarDaysIcon className="size-5"/>} title="Nothing scheduled this week" description={canManage
                 ? "Jump to another week or schedule a new class to fill the calendar."
                 : "No classes are scheduled for this week yet."} action={canManage ? (<Button size="sm" onClick={openCreate}>
                 <PlusIcon className="size-4"/> New class
-              </Button>) : undefined}/>) : (<div className="flex flex-col gap-3 md:flex-row md:items-start md:overflow-x-auto md:pb-2">
+              </Button>) : undefined}/>) : view === "week" ? (<WeekTimetable days={days} byDay={byDay} canManage={canManage} onEdit={(item) => {
+            setEditing(item);
+            setFormOpen(true);
+        }} onEnrolments={setManaging} onCancel={setCancelling}/>) : (<div className="flex flex-col gap-3 md:flex-row md:items-start md:overflow-x-auto md:pb-2">
           {days.map((day) => {
                 const key = ymdInTz(day);
                 const dayClasses = byDay.get(key) ?? [];
